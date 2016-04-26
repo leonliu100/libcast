@@ -1,0 +1,34 @@
+//
+// Copyright (C) 2016 Bartosz Golaszewski <bartekgola@gmail.com>
+//
+// This program is free software; you can redistribute it and/or modify it
+// under the terms of version 2.1 of the GNU Lesser General Public License
+// as published by the Free Software Foundation.
+//
+// This program is distributed in the hope that it would be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//
+
+syntax = "proto2";
+
+message CastMessage {
+	enum ProtocolVersion {
+		CASTV2_1_0 = 0;
+	}
+	required ProtocolVersion protocol_version = 1;
+
+	required string source_id = 2;
+	required string destination_id = 3;
+
+	required string namespace = 4;
+
+	enum PayloadType {
+		STRING = 0;
+		BINARY = 1;
+	}
+	required PayloadType payload_type = 5;
+
+	optional string payload_utf8 = 6;
+	optional bytes payload_binary = 7;
+}
