@@ -38,28 +38,33 @@ static int send_handshake(struct cast_connection *conn)
 	msg.destination_id = "receiver-0";
 	msg.namespace_ = "urn:x-cast:com.google.cast.tp.connection";
 	msg.payload_type = CAST_MESSAGE__PAYLOAD_TYPE__STRING;
-	msg.payload_utf8 = "{ \"type\": \"CONNECT\" }";
+	msg.payload_utf8 = cast_json_make_connect_payload();
 
 	len = cast_message__get_packed_size(&msg);
 	buf = malloc(len);
-	if (!buf)
+	if (!buf) {
+		free(msg.payload_utf8);
 		return -CAST_ENOMEM;
+	}
 
 	cast_message__pack(&msg, buf);
 	nlen = htonl(len);
 
 	sent = cast_ssl_full_write(conn->ssl_conn, &nlen, sizeof(uint32_t));
 	if (sent != sizeof(uint32_t)) {
+		free(msg.payload_utf8);
 		free(buf);
 		return -CAST_ESHORTWRITE;
 	}
 
 	sent = cast_ssl_full_write(conn->ssl_conn, buf, len);
 	if (sent != len) {
+		free(msg.payload_utf8);
 		free(buf);
 		return -CAST_ESHORTWRITE;
 	}
 
+	free(msg.payload_utf8);
 	free(buf);
 
 	return CAST_OK;
@@ -143,28 +148,33 @@ int cast_send_ping(struct cast_connection *conn)
 	msg.destination_id = "receiver-0";
 	msg.namespace_ = "urn:x-cast:com.google.cast.tp.heartbeat";
 	msg.payload_type = CAST_MESSAGE__PAYLOAD_TYPE__STRING;
-	msg.payload_utf8 = "{ \"type\": \"PING\" }";
+	msg.payload_utf8 = cast_json_make_ping_payload();
 
 	len = cast_message__get_packed_size(&msg);
 	buf = malloc(len);
-	if (!buf)
+	if (!buf) {
+		free(msg.payload_utf8);
 		return -CAST_ENOMEM;
+	}
 
 	cast_message__pack(&msg, buf);
 	nlen = htonl(len);
 
 	sent = cast_ssl_full_write(conn->ssl_conn, &nlen, sizeof(uint32_t));
 	if (sent != sizeof(uint32_t)) {
+		free(msg.payload_utf8);
 		free(buf);
 		return -CAST_ESHORTWRITE;
 	}
 
 	sent = cast_ssl_full_write(conn->ssl_conn, buf, len);
 	if (sent != len) {
+		free(msg.payload_utf8);
 		free(buf);
 		return -CAST_ESHORTWRITE;
 	}
 
+	free(msg.payload_utf8);
 	free(buf);
 
 	return CAST_OK;

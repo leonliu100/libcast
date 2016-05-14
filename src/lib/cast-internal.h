@@ -60,6 +60,9 @@ ssize_t cast_ssl_full_read(struct cast_ssl_connection *conn,
 ssize_t cast_ssl_full_write(struct cast_ssl_connection *conn,
 			    const void *buf, size_t bufsize);
 
+char * cast_json_make_connect_payload(void);
+char * cast_json_make_ping_payload(void);
+
 unsigned int cast_timeval_to_msec(struct timeval *tv);
 
 #endif /* CAST_INTERNAL_H */
