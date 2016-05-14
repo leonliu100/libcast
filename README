@@ -1,0 +1,5 @@
+    libcast is a portable C library implementing Google's castv2 protocol
+
+The project is in its infancy but the aim is to create a portable library and
+a set of command-line tools that will allow to launch and control apps and
+stream media to Google Chromecast.
