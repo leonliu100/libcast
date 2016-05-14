@@ -55,6 +55,8 @@ static void handle_cast_message(struct cast_connection *conn)
 		fprintf(stderr, "error receiving message: %s\n",
 			cast_strerror(CAST_PTR_ERR(msg)));
 	}
+
+	cast_msg_free(msg);
 }
 
 int main(int argc, char **argv)
