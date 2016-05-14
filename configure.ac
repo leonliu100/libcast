@@ -48,6 +48,7 @@ AC_HEADER_STDC
 AC_CHECK_FUNC([getenv], [], [AC_MSG_ERROR([getenv() unavailable])])
 AC_CHECK_FUNC([getaddrinfo], [], [AC_MSG_ERROR([getaddrinfo() unavailable])])
 AC_CHECK_FUNC([poll], [], [AC_MSG_ERROR([poll() unavailable])])
+AC_CHECK_FUNC([strdup], [], [AC_MSG_ERROR([strdup() unavailable])])
 
 AC_FUNC_MALLOC
 
