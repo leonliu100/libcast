@@ -101,11 +101,11 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (argc != 2)
+	if (optind != (argc-1))
 		err_msg_and_die(argv[0], "friendly name must be specified\n");
 
 	snprintf(hostname, sizeof(hostname), "%s.%s",
-		 argv[1], domain ? domain : "local");
+		 argv[optind], domain ? domain : "local");
 
 	cast_conn = cast_conn_connect(hostname);
 	if (CAST_IS_ERR(cast_conn)) {
