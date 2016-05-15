@@ -85,11 +85,11 @@ CAST_API int cast_resolve(const char *hostname, uint32_t *ip_addr);
 
 struct cast_connection;
 
-CAST_API struct cast_connection * cast_connect(const char *hostname);
+CAST_API struct cast_connection * cast_conn_connect(const char *hostname);
 
-CAST_API void cast_close_connection(struct cast_connection *conn);
+CAST_API void cast_conn_close(struct cast_connection *conn);
 
-CAST_API int cast_connection_get_fd(struct cast_connection *conn);
+CAST_API int cast_conn_fd_get(struct cast_connection *conn);
 
 struct cast_message;
 
@@ -118,6 +118,6 @@ CAST_API int cast_msg_send(struct cast_connection *conn,
 
 CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
 
-CAST_API int cast_send_ping(struct cast_connection *conn);
+CAST_API int cast_conn_ping(struct cast_connection *conn);
 
 #endif /* _LIBCAST_H_ */

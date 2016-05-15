@@ -218,7 +218,7 @@ static int send_handshake(struct cast_connection *conn)
 	return status;
 }
 
-struct cast_connection * cast_connect(const char *hostname)
+struct cast_connection * cast_conn_connect(const char *hostname)
 {
 	struct cast_ssl_connection *ssl_conn;
 	struct cast_connection *conn;
@@ -238,25 +238,25 @@ struct cast_connection * cast_connect(const char *hostname)
 
 	status = send_handshake(conn);
 	if (status) {
-		cast_close_connection(conn);
+		cast_conn_close(conn);
 		return CAST_ERR_PTR(status);
 	}
 
 	return conn;
 }
 
-void cast_close_connection(struct cast_connection *conn)
+void cast_conn_close(struct cast_connection *conn)
 {
 	cast_ssl_close_connection(conn->ssl_conn);
 	free(conn);
 }
 
-int cast_connection_get_fd(struct cast_connection *conn)
+int cast_conn_fd_get(struct cast_connection *conn)
 {
 	return cast_ssl_connection_get_fd(conn->ssl_conn);
 }
 
-int cast_send_ping(struct cast_connection *conn)
+int cast_conn_ping(struct cast_connection *conn)
 {
 	struct cast_message *msg;
 	char *payload;

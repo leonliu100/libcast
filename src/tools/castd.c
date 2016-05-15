@@ -95,14 +95,14 @@ int main(int argc, char **argv)
 	snprintf(hostname, sizeof(hostname), "%s.%s",
 		 argv[1], domain ? domain : "local");
 
-	cast_conn = cast_connect(hostname);
+	cast_conn = cast_conn_connect(hostname);
 	if (CAST_IS_ERR(cast_conn)) {
 		fprintf(stderr, "connection error: %s\n",
 			cast_strerror(CAST_PTR_ERR(cast_conn)));
 		return EXIT_FAILURE;
 	}
 
-	pfds[0].fd = cast_connection_get_fd(cast_conn);
+	pfds[0].fd = cast_conn_fd_get(cast_conn);
 	pfds[0].events = POLLIN | POLLPRI;
 
 	for (;;) {
@@ -115,11 +115,11 @@ int main(int argc, char **argv)
 				handle_cast_message(cast_conn);
 			}
 		} else {
-			cast_send_ping(cast_conn);
+			cast_conn_ping(cast_conn);
 		}
 	}
 
-	cast_close_connection(cast_conn);
+	cast_conn_close(cast_conn);
 
 	return EXIT_SUCCESS;
 }
