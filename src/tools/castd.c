@@ -21,11 +21,11 @@
 static const struct option longopts[] = {
 	{ "version",	no_argument,		NULL,	'v'	},
 	{ "help",	no_argument,		NULL,	'h'	},
-	{ "domain",	required_argument,	NULL,	'r'	},
+	{ "domain",	required_argument,	NULL,	'd'	},
 	{ NULL,		0,			NULL,	0	},
 };
 
-static const char *const optstr = "vhr:";
+static const char *const optstr = "vhd:";
 
 CAST_NORETURN static void print_version(void)
 {
