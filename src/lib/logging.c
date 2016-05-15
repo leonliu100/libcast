@@ -40,6 +40,7 @@ static const char * level_to_header(int level)
 	case CAST_LOG_WARN:	return "[WARNING]";
 	case CAST_LOG_INFO:	return "[INFO]";
 	case CAST_LOG_DBG:	return "[DEBUG]";
+	case CAST_LOG_DUMP:	return "[DUMP]";
 	default:		return "[UNKNOWN]";
 	}
 }
@@ -83,6 +84,15 @@ void cast_log_callback_set(cast_log_callback cb)
 }
 
 #if ENABLE_DEBUG
+void cast_dump(const char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	emit_msg(CAST_LOG_DUMP, fmt, va);
+	va_end(va);
+}
+
 void cast_dbg(const char *fmt, ...)
 {
 	va_list va;

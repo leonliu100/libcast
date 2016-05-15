@@ -27,8 +27,14 @@ static inline void * CAST_ERR_PTR(intptr_t error)
 }
 
 #if ENABLE_DEBUG
+CAST_PRINTF_FUNC(1, 2) void cast_dump(const char *fmt, ...);
 CAST_PRINTF_FUNC(1, 2) void cast_dbg(const char *fmt, ...);
 #else
+static inline void cast_dump(const char *fmt CAST_UNUSED, ...)
+{
+
+}
+
 static inline void cast_dbg(const char *fmt CAST_UNUSED, ...)
 {
 

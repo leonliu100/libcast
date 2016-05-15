@@ -62,6 +62,7 @@ enum {
 	CAST_LOG_WARN,
 	CAST_LOG_INFO,
 	CAST_LOG_DBG,
+	CAST_LOG_DUMP,
 };
 
 typedef void (*cast_log_callback)(int, const char *);

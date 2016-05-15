@@ -118,6 +118,15 @@ const char * cast_msg_namespace_get(int namespace)
 	}
 }
 
+static void dump_message(const char *hdr, struct cast_message *msg)
+{
+	cast_dump("%s", hdr);
+	cast_dump("  %-16s%s", "source_id:", msg->pbmsg->source_id);
+	cast_dump("  %-16s%s", "destination_id:", msg->pbmsg->destination_id);
+	cast_dump("  %-16s%s", "namespace:", msg->pbmsg->namespace_);
+	cast_dump("  %-16s%s", "payload:", msg->pbmsg->payload_utf8);
+}
+
 struct cast_message * cast_msg_receive(struct cast_connection *conn)
 {
 	struct cast_message *msg;
@@ -142,6 +151,8 @@ struct cast_message * cast_msg_receive(struct cast_connection *conn)
 	msg->pbmsg = cast_message__unpack(NULL, len, buf);
 	if (!msg)
 		return CAST_ERR_PTR(-CAST_ENOMEM);
+
+	dump_message("message received:", msg);
 
 	return msg;
 }
@@ -170,6 +181,8 @@ int cast_msg_send(struct cast_connection *conn, struct cast_message *msg)
 	free(buf);
 	if (sent != len)
 		return -CAST_ESHORTWRITE;
+
+	dump_message("message sent:", msg);
 
 	return CAST_OK;
 }
