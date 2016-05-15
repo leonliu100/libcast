@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdarg.h>
 #include <getopt.h>
 #include <errno.h>
 #include <poll.h>
@@ -44,6 +45,19 @@ CAST_NORETURN static void print_help(void)
 	printf("\t-d, --domain=DOMAIN\tspecify the domain name (defaults to 'local')\n");
 
 	exit(EXIT_SUCCESS);
+}
+
+CAST_NORETURN static void err_msg_and_die(const char *progname,
+					  const char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	fprintf(stderr, "%s: ", progname);
+	vfprintf(stderr, fmt, va);
+	va_end(va);
+
+	exit(EXIT_FAILURE);
 }
 
 static void handle_cast_message(struct cast_connection *conn)
@@ -87,19 +101,16 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (argc != 2) {
-		fprintf(stderr, "friendly name must be specified\n");
-		return EXIT_FAILURE;
-	}
+	if (argc != 2)
+		err_msg_and_die(argv[0], "friendly name must be specified\n");
 
 	snprintf(hostname, sizeof(hostname), "%s.%s",
 		 argv[1], domain ? domain : "local");
 
 	cast_conn = cast_conn_connect(hostname);
 	if (CAST_IS_ERR(cast_conn)) {
-		fprintf(stderr, "connection error: %s\n",
-			cast_strerror(CAST_PTR_ERR(cast_conn)));
-		return EXIT_FAILURE;
+		err_msg_and_die(argv[0], "connection error: %s\n",
+				cast_strerror(CAST_PTR_ERR(cast_conn)));
 	}
 
 	pfds[0].fd = cast_conn_fd_get(cast_conn);
