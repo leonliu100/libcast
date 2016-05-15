@@ -15,7 +15,7 @@
 #include <string.h>
 #include <json-c/json.h>
 
-char * make_simple_type_payload(const char *type)
+static char * make_simple_type_payload(const char *type)
 {
 	json_object *obj, *strobj;
 	char *str;
