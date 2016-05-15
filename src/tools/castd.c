@@ -38,7 +38,7 @@ CAST_NORETURN static void print_version(void)
 
 CAST_NORETURN static void print_help(void)
 {
-	printf("Usage: lscast [OPTIONS] FRIENDLY_NAME\n\n");
+	printf("Usage: castd [OPTIONS] FRIENDLY_NAME\n\n");
 	printf("Options:\n");
 	printf("\t-v, --version:\t\tprint version\n");
 	printf("\t-h, --help:\t\tprint this message and exit\n");
