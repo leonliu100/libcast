@@ -83,7 +83,6 @@ CAST_API int cast_discover(cast_discover_callback cb,
 CAST_API int cast_resolve(const char *hostname, uint32_t *ip_addr);
 
 struct cast_connection;
-struct cast_message;
 
 CAST_API struct cast_connection * cast_connect(const char *hostname);
 
@@ -91,9 +90,32 @@ CAST_API void cast_close_connection(struct cast_connection *conn);
 
 CAST_API int cast_connection_get_fd(struct cast_connection *conn);
 
-CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
+struct cast_message;
+
+enum {
+	CAST_MSG_NS_CONNECTION = 0,
+	CAST_MSG_NS_HEARTBEAT,
+};
+
+CAST_API struct cast_message * cast_msg_new(const char *src,
+					    const char *dst,
+					    const char *namespace);
 
 CAST_API void cast_msg_free(struct cast_message *msg);
+
+CAST_API int cast_msg_payload_str_set(struct cast_message *msg,
+				      const char *payload);
+
+CAST_API const char * cast_msg_default_sender(void);
+
+CAST_API const char * cast_msg_default_receiver(void);
+
+CAST_API const char * cast_msg_namespace_get(int namespace);
+
+CAST_API int cast_msg_send(struct cast_connection *conn,
+			   struct cast_message *msg);
+
+CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
 
 CAST_API int cast_send_ping(struct cast_connection *conn);
 
