@@ -12,6 +12,10 @@
 
 #include "cast-internal.h"
 
+#include <netdb.h>
+#include <errno.h>
+#include <string.h>
+#include <sys/socket.h>
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
 #include <avahi-common/simple-watch.h>
@@ -146,4 +150,25 @@ out_free_poll:
 
 out:
 	return ret;
+}
+
+int cast_resolve(const char *hostname, uint32_t *ip_addr)
+{
+	struct sockaddr_in *saddr;
+	struct addrinfo *result;
+	int status;
+
+	status = getaddrinfo(hostname, NULL, NULL, &result);
+	if (status) {
+		cast_err("resolver error: %s",
+			 status == EAI_SYSTEM ? strerror(errno)
+					      : gai_strerror(status));
+		return -CAST_ERESOLVER;
+	}
+
+	saddr = (struct sockaddr_in *)result->ai_addr;
+	*ip_addr = saddr->sin_addr.s_addr;
+	freeaddrinfo(result);
+
+	return 0;
 }

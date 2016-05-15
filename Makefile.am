@@ -13,7 +13,6 @@ libcast_la_SOURCES = \
 	src/lib/util.c \
 	src/lib/thread.c \
 	src/lib/version.c \
-	src/lib/network.c \
 	src/lib/connection.c \
 	src/lib/ssl.c \
 	src/lib/json.c \
