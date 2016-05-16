@@ -12,14 +12,14 @@
 
 AC_PREREQ(2.61)
 
-AC_INIT([libcast], 1.0.1)
+AC_INIT([libcast], 0.0.1)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([autostuff])
 AM_INIT_AUTOMAKE([foreign -Wall -Werror subdir-objects])
 
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
-AC_SUBST(LIB_VER_MINOR, 1)
+AC_SUBST(LIB_VER_MAJOR, 0)
 AC_SUBST(LIB_VER_MINOR, 0)
 AC_SUBST(LIB_VER_RELEASE, 1)
 
