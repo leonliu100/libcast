@@ -1,5 +1,6 @@
 AUTOMAKE_OPTIONS = foreign
 ACLOCAL_AMFLAGS = -I m4
+LIBS =
 
 AM_CPPFLAGS = -I$(top_srcdir)/include -include $(top_srcdir)/config.h -Wextra
 AM_CPPFLAGS += -fvisibility=hidden
@@ -22,6 +23,7 @@ CLEANFILES = src/lib/message.pb-c.c src/lib/message.pb-c.h
 
 libcast_la_LDFLAGS = --version-number $(LIB_VER_MAJOR):$(LIB_VER_MINOR):$(LIB_VER_RELEASE)
 libcast_la_LDFLAGS += -version-info 1:0:0
+libcast_la_LDFLAGS += -lpthread -lavahi-common -lavahi-client -ljson-c -lssl -lprotobuf-c
 
 protofiles:
 	protoc-c $(top_srcdir)/src/lib/message.proto --c_out=./
@@ -32,13 +34,12 @@ all: protofiles
 bin_PROGRAMS = castctl castd lscast
 
 castctl_SOURCES = src/tools/castctl.c
-castctl_LDADD = -lcast
 
 castd_SOURCES = src/tools/castd.c
-castd_LDADD = -lcast
+castd_LDFLAGS = -lcast
 
 lscast_SOURCES = src/tools/lscast.c
-lscast_LDADD = -lcast
+lscast_LDFLAGS = -lcast
 
 library_includedir = include
 library_include_HEADERS = include/libcast.h
