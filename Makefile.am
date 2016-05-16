@@ -25,7 +25,7 @@ libcast_la_LDFLAGS += -version-info 1:0:0
 
 protofiles:
 	protoc-c $(top_srcdir)/src/lib/message.proto --c_out=./
-.PHONY: src/lib/message.pb-c.c
+.PHONY: protofiles
 
 all: protofiles
 
