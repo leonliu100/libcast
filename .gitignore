@@ -30,3 +30,5 @@ lscast
 m4
 message.pb-c.c
 message.pb-c.h
+castdctl.pb-c.c
+castdctl.pb-c.h
