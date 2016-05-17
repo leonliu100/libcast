@@ -16,6 +16,10 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CAST_UNUSED	__attribute__((unused))
 #define CAST_NORETURN	__attribute__((noreturn))
 #define CAST_API	__attribute__((visibility("default")))
@@ -119,5 +123,9 @@ CAST_API int cast_msg_send(struct cast_connection *conn,
 CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
 
 CAST_API int cast_conn_ping(struct cast_connection *conn);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _LIBCAST_H_ */
