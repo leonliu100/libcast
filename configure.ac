@@ -51,6 +51,8 @@ AC_CHECK_FUNC([getenv], [], [AC_MSG_ERROR([getenv() unavailable])])
 AC_CHECK_FUNC([getaddrinfo], [], [AC_MSG_ERROR([getaddrinfo() unavailable])])
 AC_CHECK_FUNC([poll], [], [AC_MSG_ERROR([poll() unavailable])])
 AC_CHECK_FUNC([strdup], [], [AC_MSG_ERROR([strdup() unavailable])])
+AC_CHECK_FUNC([readdir], [], [AC_MSG_ERROR([readdir() unavailable])])
+AC_CHECK_FUNC([socket], [], [AC_MSG_ERROR([socket() unavailable])])
 
 AC_TRY_RUN([
 int main()
@@ -84,6 +86,9 @@ AC_CHECK_LIB([json-c], [json_object_new_object], [],
 AC_CHECK_HEADERS([getopt.h], [], [AC_MSG_ERROR([getopt.h header not found])])
 AC_CHECK_HEADERS([limits.h], [], [AC_MSG_ERROR([limits.h header not found])])
 AC_CHECK_HEADERS([stdint.h], [], [AC_MSG_ERROR([stdint.h header not found])])
+AC_CHECK_HEADERS([dirent.h], [], [AC_MSG_ERROR([dirent.h header not found])])
+AC_CHECK_HEADERS([sys/socket.h], [],
+		[AC_MSG_ERROR([sys/socket.h header not found])])
 AC_CHECK_HEADERS([openssl/ssl.h openssl/bio.h], [],
 		[AC_MSG_ERROR([openssl headers not found])])
 AC_CHECK_HEADERS([protobuf-c/protobuf-c.h], [],
