@@ -1,34 +1,79 @@
 //
-// Copyright (C) 2016 Bartosz Golaszewski <bartekgola@gmail.com>
+// Copyright 2015 The Chromium Authors. All rights reserved.
+// Copyright 2016 Bartosz Golaszewski <bartekgola@gmail.com>
 //
-// This program is free software; you can redistribute it and/or modify it
-// under the terms of version 2.1 of the GNU Lesser General Public License
-// as published by the Free Software Foundation.
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
-// This program is distributed in the hope that it would be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+//    * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//    * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//    * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 
 syntax = "proto2";
 
 message CastMessage {
+	// Always pass a version of the protocol for future compatibility
+	// requirements.
 	enum ProtocolVersion {
 		CASTV2_1_0 = 0;
 	}
 	required ProtocolVersion protocol_version = 1;
 
+	// source and destination ids identify the origin and destination of
+	// the message. They are used to route messages between endpoints that
+	// share a device-to-device channel.
+	//
+	// For messages between applications:
+	//   - The sender application id is a unique identifier generated on
+	//     behalf of the sender application.
+	//   - The receiver id is always the the session id for the
+	//     application.
+	//
+	// For messages to or from the sender or receiver platform, the
+	// special ids 'sender-0' and 'receiver-0' can be used.
+	//
+	// For messages intended for all endpoints using a given channel, the
+	// wildcard destination_id '*' can be used.
 	required string source_id = 2;
 	required string destination_id = 3;
 
+	// This is the core multiplexing key. All messages are sent on
+	// a namespace and endpoints sharing a channel listen on one or more
+	// namespaces. The namespace defines the protocol and semantics of the
+	// message.
 	required string namespace = 4;
 
+	// Encoding and payload info follows.
+
+	// What type of data do we have in this message.
 	enum PayloadType {
 		STRING = 0;
 		BINARY = 1;
 	}
 	required PayloadType payload_type = 5;
 
+	// Depending on payload_type, exactly one of the following optional
+	// fields will always be set.
 	optional string payload_utf8 = 6;
 	optional bytes payload_binary = 7;
 }
