@@ -17,7 +17,6 @@
 
 static const char *const env_name = "CAST_LOG_LEVEL";
 
-static struct cast_mutex log_mutex = CAST_MUTEX_INITIALIZER;
 static int log_level;
 static int log_env_overridden;
 static cast_log_callback log_callback;
@@ -47,13 +46,14 @@ static const char * level_to_header(int level)
 
 static void emit_msg(int level, const char *fmt, va_list va)
 {
+	int current_level;
 	char buf[256];
+
+	current_level = __sync_fetch_and_add(&log_level, 0);
 
 	vsnprintf(buf, sizeof(buf), fmt, va);
 
-	cast_mutex_lock(&log_mutex);
-
-	if (level <= log_level) {
+	if (level <= current_level) {
 		fprintf(stderr, "libcast %-10s%s\n",
 			level_to_header(level), buf);
 	}
@@ -64,23 +64,18 @@ static void emit_msg(int level, const char *fmt, va_list va)
 	 */
 	if (log_callback)
 		log_callback(level, buf);
-
-	cast_mutex_unlock(&log_mutex);
 }
 
 void cast_log_level_set(int level)
 {
-	cast_mutex_lock(&log_mutex);
 	if (!log_env_overridden)
-		log_level = level;
-	cast_mutex_unlock(&log_mutex);
+		(void)__sync_val_compare_and_swap(&log_level,
+						  log_level, level);
 }
 
 void cast_log_callback_set(cast_log_callback cb)
 {
-	cast_mutex_lock(&log_mutex);
-	log_callback = cb;
-	cast_mutex_unlock(&log_mutex);
+	(void)__sync_val_compare_and_swap(&log_callback, log_callback, cb);
 }
 
 #if ENABLE_DEBUG

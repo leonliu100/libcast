@@ -12,7 +12,6 @@ libcast_la_SOURCES = \
 	src/lib/error.c \
 	src/lib/logging.c \
 	src/lib/util.c \
-	src/lib/thread.c \
 	src/lib/version.c \
 	src/lib/connection.c \
 	src/lib/ssl.c \
@@ -23,7 +22,7 @@ CLEANFILES = src/lib/message.pb-c.c src/lib/message.pb-c.h
 
 libcast_la_LDFLAGS = --version-number $(LIB_VER_MAJOR):$(LIB_VER_MINOR):$(LIB_VER_RELEASE)
 libcast_la_LDFLAGS += -version-info 1:0:0
-libcast_la_LDFLAGS += -lpthread -lavahi-common -lavahi-client -ljson-c -lssl -lprotobuf-c
+libcast_la_LDFLAGS += -lavahi-common -lavahi-client -ljson-c -lssl -lprotobuf-c
 
 protofiles:
 	protoc-c $(top_srcdir)/src/lib/message.proto --c_out=./

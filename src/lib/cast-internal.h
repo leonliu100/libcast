@@ -16,7 +16,6 @@
 #include <libcast.h>
 
 #include <sys/time.h>
-#include <pthread.h>
 
 #define CAST_INIT_FUNC		__attribute__((constructor))
 #define CAST_PRINTF_FUNC(s, f)	__attribute__((format(printf, s, f)))
@@ -43,16 +42,6 @@ static inline void cast_dbg(const char *fmt CAST_UNUSED, ...)
 CAST_PRINTF_FUNC(1, 2) void cast_info(const char *fmt, ...);
 CAST_PRINTF_FUNC(1, 2) void cast_warn(const char *fmt, ...);
 CAST_PRINTF_FUNC(1, 2) void cast_err(const char *fmt, ...);
-
-struct cast_mutex {
-	pthread_mutex_t mutex;
-};
-#define CAST_MUTEX_INITIALIZER { PTHREAD_MUTEX_INITIALIZER }
-
-void cast_mutex_init(struct cast_mutex *mutex);
-void cast_mutex_free(struct cast_mutex *mutex);
-void cast_mutex_lock(struct cast_mutex *mutex);
-void cast_mutex_unlock(struct cast_mutex *mutex);
 
 struct cast_ssl_connection;
 
