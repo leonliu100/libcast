@@ -27,6 +27,8 @@
 
 #define NORETURN	__attribute__((noreturn))
 #define UNUSED		__attribute__((unused))
+#define INIT_FUNC	__attribute__((constructor))
+#define PACKED		__attribute__((packed))
 
 #define SUN_PATH_MAX	(sizeof(((struct sockaddr_un *)0)->sun_path))
 #define ARRAY_SIZE(x)	(sizeof(x) / sizeof(*(x)))
@@ -42,6 +44,8 @@ static const struct option longopts[] = {
 
 static const char *const optstr = "+vhn:";
 
+static char *progname = "castctl";
+
 NORETURN static void print_version(void)
 {
 	printf("castctl (libcast) %s\n", VERSION);
@@ -50,80 +54,76 @@ NORETURN static void print_version(void)
 	exit(EXIT_SUCCESS);
 }
 
-NORETURN static void err_msg_and_die(const char *progname,
-				     const char *fmt, ...)
+static void err_msg(const char *fmt, ...)
 {
 	va_list va;
 
 	va_start(va, fmt);
 	fprintf(stderr, "%s: ", progname);
 	vfprintf(stderr, fmt, va);
-	fprintf(stderr, "\n");
+	va_end(va);
+}
+
+NORETURN static void err_msg_and_die(const char *fmt, ...)
+{
+	va_list va;
+
+	va_start(va, fmt);
+	fprintf(stderr, "%s: ", progname);
+	vfprintf(stderr, fmt, va);
 	va_end(va);
 
 	exit(EXIT_FAILURE);
 }
 
+struct msg_buf {
+	uint32_t size;
+	uint8_t buf[0];
+} PACKED;
+
+/*
+ * This structure describes a single castctl command that can be used to
+ * control the cast daemon.
+ *
+ * The usage, prepare_request and handle_response fields are not mandatory.
+ *
+ * The name of the command must be unique.
+ */
 struct ctl_command {
 	const char *name;
-	int (*func)(int, int, char **);
+	unsigned int request_type;
+	unsigned int response_type;
+	int (*prepare_request)(CastdCtlRequest *, int, char **);
+	int (*handle_response)(CastdCtlResponse *);
 	const char *usage;
 	const char *help;
 };
 
-static int cmd_status_main(int sock, int argc UNUSED, char **argv UNUSED)
+static int cmd_status_handle_resp(CastdCtlResponse *resp)
 {
-	CastdCtlRequest req = CASTD_CTL_REQUEST__INIT;
-	CastdCtlResponse *resp;
-	uint32_t len, lenbuf;
-	uint8_t *buf;
-	ssize_t status;
+	char *status;
 
-	req.type = CASTD_CTL_REQUEST__TYPE__STATUS;
-	len = castd_ctl_request__get_packed_size(&req);
+	switch (resp->status->status) {
+	case CASTD_CTL_STATUS_RESP__VALUE__OK:
+		status = "OK";
+		break;
+	case CASTD_CTL_STATUS_RESP__VALUE__DEFUNCT:
+		status = "DEFUNCT";
+		break;
+	default:
+		status = "UNKNOWN";
+	}
 
-	buf = malloc(len);
-	if (!buf)
-		return -1;
-
-	castd_ctl_request__pack(&req, buf);
-
-	lenbuf = htonl(len);
-	status = write(sock, &lenbuf, sizeof(lenbuf));
-	if (status != sizeof(lenbuf))
-		return -1;
-
-	status = write(sock, buf, len);
-	if (status != len)
-		return -1;
-
-	status = read(sock, &lenbuf, sizeof(lenbuf));
-	if (status != sizeof(lenbuf))
-		return -1;
-
-	len = ntohl(lenbuf);
-	buf = realloc(buf, len);
-	if (!buf)
-		return -1;
-
-	status = read(sock, buf, len);
-	if (status != len)
-		return -1;
-
-	resp = castd_ctl_response__unpack(NULL, len, buf);
-	if (!resp)
-		return -1;
-
-	printf("status %d\n", resp->type);
-
-	castd_ctl_response__free_unpacked(resp, NULL);
+	printf("castd status: %s\n", status);
 
 	return 0;
 }
+
 static struct ctl_command cmd_status = {
 	.name = "status",
-	.func = &cmd_status_main,
-	.usage = NULL,
+	.request_type = CASTD_CTL_REQUEST__TYPE__STATUS,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__STATUS,
+	.handle_response = cmd_status_handle_resp,
 	.help = "retrieve the cast daemon status info",
 };
 
@@ -137,6 +137,13 @@ static int cmd_list_compar(const void *p1, const void *p2)
 	const struct ctl_command *cmd2 = *(const struct ctl_command **)p2;
 
 	return strcmp(cmd1->name, cmd2->name);
+}
+
+/* We sort the command list by name when the program starts. */
+INIT_FUNC static void sort_command_list(void)
+{
+	qsort(cmd_list, ARRAY_SIZE(cmd_list),
+	      sizeof(struct ctl_command *), cmd_list_compar);
 }
 
 NORETURN static void print_help(void)
@@ -161,21 +168,124 @@ NORETURN static void print_help(void)
 	exit(EXIT_SUCCESS);
 }
 
-int main(int argc, char **argv)
+static int is_socket(const char *file)
 {
-	char *castd_name = NULL, *progname = argv[0];
-	int opt_ind, opt_char, sock, status;
-	struct ctl_command key, *kptr;
-	struct sockaddr_un srv_addr;
-	char dpath[SUN_PATH_MAX];
+	struct stat statbuf;
+	int status;
+	char *path;
+
+	path = malloc(strlen(castd_sock_dir) + strlen(file) + 2);
+	if (!path)
+		err_msg_and_die("out of memory\n");
+
+	sprintf(path, "%s/%s", castd_sock_dir, file);
+
+	status = stat(path, &statbuf);
+	free(path);
+	if (status < 0)
+		err_msg_and_die("stat error: %s\n", strerror(errno));
+
+	return S_ISSOCK(statbuf.st_mode);
+
+}
+
+static void find_castd_sock(char *sockpath_buf)
+{
 	unsigned int numsock = 0;
-	struct ctl_command *cmd;
 	struct dirent *dentry;
-	void *search_res;
+	char *castd_name;
 	DIR *dirfd;
 
-	qsort(cmd_list, ARRAY_SIZE(cmd_list),
-	      sizeof(struct ctl_command *), cmd_list_compar);
+	/*
+	 * The user didn't give us the name of the chromecast, so we need
+	 * to figure out the daemon ourselves.
+	 */
+	dirfd = opendir(castd_sock_dir);
+	if (!dirfd) {
+		if (errno == ENOENT)
+			err_msg_and_die("no cast daemons running\n");
+
+		err_msg_and_die("error opening %s: %s\n",
+				castd_sock_dir, strerror(errno));
+	}
+
+	/* Count the unix domain sockets in the castd socket directory. */
+	for (;;) {
+		dentry = readdir(dirfd);
+		if (!dentry)
+			break;
+
+		if (is_socket(dentry->d_name)) {
+			numsock++;
+			/*
+			 * Store the name. If there is only one castd
+			 * daemon running, we won't have to go through
+			 * the directory again.
+			 */
+			castd_name = dentry->d_name;
+		}
+	}
+	rewinddir(dirfd);
+
+	if (numsock == 0) {
+		closedir(dirfd);
+		err_msg_and_die("no cast daemons running\n");
+	} else if (numsock == 1) {
+		/* There's only one socket, so let's return it. */
+		snprintf(sockpath_buf, SUN_PATH_MAX,
+			 "%s/%s", castd_sock_dir, castd_name);
+	} else {
+		/*
+		 * If there are more daemons running, the user must point us
+		 * to the right one.
+		 */
+		err_msg("multiple cast daemons detected:\n");
+		for (;;) {
+			dentry = readdir(dirfd);
+			if (!dentry)
+				break;
+
+			if (!is_socket(dentry->d_name))
+				continue;
+
+			fprintf(stderr, "  %s\n", dentry->d_name);
+		}
+		err_msg_and_die("name must be specified\n");
+	}
+
+	closedir(dirfd);
+}
+
+static struct ctl_command * find_command(const char *name)
+{
+	struct ctl_command key, *keyptr;
+	void *search_res;
+
+	key.name = name;
+	keyptr = &key;
+	search_res = bsearch(&keyptr, cmd_list, ARRAY_SIZE(cmd_list),
+			     sizeof(struct ctl_command *), cmd_list_compar);
+	if (!search_res)
+		return NULL;
+
+	return *(struct ctl_command **)search_res;
+}
+
+int main(int argc, char **argv)
+{
+	int opt_ind, opt_char, sock, status;
+	struct sockaddr_un srv_addr;
+	char sockpath[SUN_PATH_MAX];
+	struct ctl_command *cmd;
+	char *castd_name = NULL;
+	struct msg_buf *msg;
+	ssize_t iores;
+	uint32_t len;
+
+	CastdCtlRequest request = CASTD_CTL_REQUEST__INIT;
+	CastdCtlResponse *response;
+
+	progname = argv[0];
 
 	for (;;) {
 		opt_char = getopt_long(argc, argv, optstr, longopts, &opt_ind);
@@ -198,97 +308,87 @@ int main(int argc, char **argv)
 	}
 
 	if (optind >= argc)
-		err_msg_and_die(progname, "command must be specified");
+		err_msg_and_die("command must be specified\n");
 
 	argc -= optind;
 	argv += optind;
 
 	if (castd_name) {
-		snprintf(dpath, SUN_PATH_MAX,
+		snprintf(sockpath, SUN_PATH_MAX,
 			 "%s/%s", castd_sock_dir, castd_name);
 	} else {
-		dirfd = opendir(castd_sock_dir);
-		if (!dirfd) {
-			if (errno == ENOENT)
-				err_msg_and_die(progname,
-						"no cast daemons running");
-
-			err_msg_and_die(progname, "error opening %s: %s",
-					castd_sock_dir, strerror(errno));
-		}
-
-		for (;;) {
-			dentry = readdir(dirfd);
-			if (!dentry)
-				break;
-
-			if ((strcmp(dentry->d_name, ".") != 0
-			    && (strcmp(dentry->d_name, "..") != 0))) {
-				numsock++;
-				/*
-				 * Store the name. If there is only one castd
-				 * daemon running, we won't have to go through
-				 * the directory again.
-				 */
-				castd_name = dentry->d_name;
-			}
-		}
-		rewinddir(dirfd);
-
-		if (numsock == 0) {
-			closedir(dirfd);
-			err_msg_and_die(progname, "no cast daemons running");
-		} else if (numsock == 1) {
-			snprintf(dpath, SUN_PATH_MAX,
-				 "%s/%s", castd_sock_dir, castd_name);
-		} else {
-			fprintf(stderr, "multiple cast daemons detected:\n");
-			for (;;) {
-				dentry = readdir(dirfd);
-				if (!dentry)
-					break;
-
-				if ((strcmp(dentry->d_name, ".") == 0
-				    || (strcmp(dentry->d_name, "..") == 0)))
-					continue;
-
-				fprintf(stderr, "  %s\n", dentry->d_name);
-			}
-			fprintf(stderr, "name must be specified\n");
-
-			return EXIT_FAILURE;
-		}
-
-		closedir(dirfd);
+		find_castd_sock(sockpath);
 	}
 
-	key.name = argv[0];
-	kptr = &key;
-	search_res = bsearch(&kptr, cmd_list, ARRAY_SIZE(cmd_list),
-			     sizeof(struct ctl_command *), cmd_list_compar);
-	if (!search_res)
-		err_msg_and_die(progname, "unsupported command: %s", argv[0]);
-
-	cmd = *(struct ctl_command **)search_res;
+	cmd = find_command(argv[0]);
+	if (!cmd)
+		err_msg_and_die("unsupported command: %s\n", argv[0]);
 
 	sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sock < 0)
-		err_msg_and_die(progname, "socket error: %s", strerror(errno));
+		err_msg_and_die("socket error: %s\n", strerror(errno));
 
 	srv_addr.sun_family = AF_UNIX;
-	strncpy(srv_addr.sun_path, dpath, SUN_PATH_MAX);
+	strncpy(srv_addr.sun_path, sockpath, SUN_PATH_MAX);
 
 	status = connect(sock, (struct sockaddr *)&srv_addr, sizeof(srv_addr));
-	if (status < 0) {
-		close(sock);
-		err_msg_and_die(progname,
-				"connection error: %s", strerror(errno));
+	if (status < 0)
+		err_msg_and_die("connection error: %s\n", strerror(errno));
+
+	request.type = cmd->request_type;
+	if (cmd->prepare_request) {
+		status = cmd->prepare_request(&request, argc, argv);
+		if (status < 0)
+			err_msg_and_die("error preparing the request\n");
 	}
 
-	status = cmd->func(sock, argc, argv);
+	len = castd_ctl_request__get_packed_size(&request);
 
+	msg = malloc(len + sizeof(msg->size));
+	if (!msg)
+		err_msg_and_die("out of memory\n");
+
+	msg->size = htonl(len);
+	castd_ctl_request__pack(&request, msg->buf);
+
+	iores = send(sock, (void *)msg, len + sizeof(msg->size), MSG_DONTWAIT);
+	if (iores < 0)
+		err_msg_and_die("sending message: %s\n", strerror(errno));
+	else if (iores != (ssize_t)(len + sizeof(msg->size)))
+		err_msg_and_die("unable to send whole message\n");
+
+	iores = recv(sock, &msg->size, sizeof(msg->size), 0);
+	if (iores < 0)
+		err_msg_and_die("receiving message: %s\n", strerror(errno));
+	else if (iores != sizeof(msg->size))
+		err_msg_and_die("didn't receive the whole message header\n");
+
+	len = ntohl(msg->size);
+
+	msg = realloc(msg, len + sizeof(msg->size));
+	if (!msg)
+		err_msg_and_die("out of memory\n");
+
+	iores = recv(sock, msg->buf, len, MSG_DONTWAIT);
+	if (iores < 0)
+		err_msg_and_die("receiving message: %s\n", strerror(errno));
+	else if (iores != len)
+		err_msg_and_die("didn't receive the whole message\n");
+
+	response = castd_ctl_response__unpack(NULL, len, msg->buf);
+	if (!response)
+		err_msg_and_die("out of memory\n");
+
+	if (response->type != cmd->response_type)
+		err_msg_and_die("received message of invalid type\n");
+
+	if (cmd->handle_response)
+		status = cmd->handle_response(response);
+
+	free(msg);
+	castd_ctl_response__free_unpacked(response, NULL);
 	close(sock);
 
-	return status;
+	return EXIT_SUCCESS;
 }
 
