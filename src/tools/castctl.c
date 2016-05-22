@@ -91,8 +91,8 @@ struct msg_buf {
  */
 struct ctl_command {
 	const char *name;
-	unsigned int request_type;
-	unsigned int response_type;
+	int request_type;
+	int response_type;
 	int (*prepare_request)(CastdCtlRequest *, int, char **);
 	int (*handle_response)(CastdCtlResponse *);
 	const char *usage;
@@ -279,6 +279,16 @@ static struct ctl_command * find_command(const char *name)
 	return *(struct ctl_command **)search_res;
 }
 
+static void handle_error_response(CastdCtlResponse *resp)
+{
+	switch (resp->error->code) {
+	case CASTD_CTL_ERROR_RESP__CODE__ENOSUPP:
+		err_msg_and_die("command unsupported by castd\n");
+	default:
+		err_msg_and_die("unknown error returned by castd\n");
+	}
+}
+
 int main(int argc, char **argv)
 {
 	int opt_ind, opt_char, sock, status;
@@ -387,7 +397,9 @@ int main(int argc, char **argv)
 	if (!response)
 		err_msg_and_die("out of memory\n");
 
-	if (response->type != cmd->response_type)
+	if (response->type == CASTD_CTL_RESPONSE__TYPE__ERROR)
+		handle_error_response(response);
+	else if (response->type != cmd->response_type)
 		err_msg_and_die("received message of invalid type\n");
 
 	if (cmd->handle_response)
