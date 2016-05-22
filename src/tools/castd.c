@@ -45,6 +45,16 @@ struct log_level {
 };
 #define LOG_INVAL INT_MAX
 
+/* Shorter names for library log levels. */
+enum {
+	LOG_NONE = CAST_LOG_NONE,
+	LOG_ERR = CAST_LOG_ERR,
+	LOG_WARN = CAST_LOG_WARN,
+	LOG_INFO = CAST_LOG_INFO,
+	LOG_DEBUG = CAST_LOG_DBG,
+	LOG_DUMP = CAST_LOG_DUMP,
+};
+
 static struct log_level log_levels[] = {
 	{
 		.val = CAST_LOG_NONE,
@@ -96,14 +106,21 @@ static const char * log_level_name(int level)
 	return "INVALID";
 }
 
+enum {
+	CASTD_STATUS_OK = 0,
+	CASTD_STATUS_DEFUNCT,
+};
+
 struct castd_context {
 	struct cast_connection *cast_conn;
 	int ctl_sock;
 	int log_level;
+	int run;
+	int status;
 };
-#define CASTD_CTX_INITIALIZER	{ NULL, 0, CAST_LOG_WARN }
+#define CASTD_CTX_INITIALIZER	{ NULL, 0, CAST_LOG_WARN, 1, CASTD_STATUS_OK }
 
-static void logmsg(struct castd_context *ctx, int level, const char *fmt, ...)
+static void log_msg(struct castd_context *ctx, int level, const char *fmt, ...)
 {
 	va_list va;
 
@@ -118,7 +135,7 @@ static void logmsg(struct castd_context *ctx, int level, const char *fmt, ...)
 
 static void lib_log_callback(int level, const char *msg, void *priv)
 {
-	logmsg((struct castd_context *)priv, level, msg);
+	log_msg((struct castd_context *)priv, level, msg);
 }
 
 CAST_NORETURN static void print_version(void)
@@ -156,18 +173,56 @@ CAST_NORETURN static void err_msg_and_die(const char *progname,
 	exit(EXIT_FAILURE);
 }
 
-static void handle_cast_message(struct cast_connection *conn)
+static void handle_heartbeat_msg(struct castd_context *ctx,
+				 struct cast_message *msg)
+{
+	int type, status;
+
+	type = cast_payload_type_get(cast_msg_payload_get(msg));
+
+	switch (type) {
+	case CAST_PAYLOAD_PING:
+		log_msg(ctx, LOG_DEBUG, "ping request received");
+		status = cast_msg_pong_respond(ctx->cast_conn, msg);
+		if (status != CAST_OK) {
+			log_msg(ctx, LOG_ERR,
+				"error responding to ping request: %s",
+				cast_strerror(status));
+		} else {
+			log_msg(ctx, LOG_DEBUG, "pong request sent");
+		}
+		break;
+	case CAST_PAYLOAD_PONG:
+		/* TODO Detect broken connections. */
+		log_msg(ctx, LOG_DEBUG, "pong response received");
+		break;
+	default:
+		log_msg(ctx, LOG_WARN, "dropping unknown heartbeat message");
+	}
+}
+
+static void handle_cast_message(struct castd_context *ctx)
 {
 	struct cast_message *msg;
+	int ns;
 
-	msg = cast_msg_receive(conn);
+	msg = cast_msg_receive(ctx->cast_conn);
 	if (CAST_IS_ERR(msg)) {
-		fprintf(stderr, "error receiving message: %s\n",
+		log_msg(ctx, LOG_ERR, "error receiving message: %s",
 			cast_strerror(CAST_PTR_ERR(msg)));
+		return;
 	}
 
-	printf("message type: %d\n",
-	       cast_payload_type_get(cast_msg_payload_get(msg)));
+	ns = cast_msg_namespace_get(msg);
+
+	switch (ns) {
+	case CAST_MSG_NS_HEARTBEAT:
+		handle_heartbeat_msg(ctx, msg);
+		break;
+	default:
+		log_msg(ctx, LOG_WARN,
+			"dropping message from unknown namespace");
+	}
 
 	cast_msg_free(msg);
 }
@@ -207,7 +262,7 @@ static int create_ctl_socket(const char *hostname)
 	return sock;
 }
 
-static void handle_ctl_request(int srv_sock)
+static void handle_ctl_request(struct castd_context *ctx)
 {
 	CastdCtlRequest *req;
 	CastdCtlResponse resp = CASTD_CTL_RESPONSE__INIT;
@@ -219,7 +274,7 @@ static void handle_ctl_request(int srv_sock)
 	struct sockaddr_un addr;
 	socklen_t socklen;
 
-	sock = accept(srv_sock, (struct sockaddr *)&addr, &socklen);
+	sock = accept(ctx->ctl_sock, (struct sockaddr *)&addr, &socklen);
 	if (sock < 0)
 		return;
 
@@ -269,8 +324,8 @@ enum {
 
 int main(int argc, char **argv)
 {
+	int opt_ind, opt_char, status, ping = 1, numfds = NUM_PFDS;
 	struct castd_context ctx = CASTD_CTX_INITIALIZER;
-	int opt_ind, opt_char, status, ping = 1;
 	struct pollfd pfds[NUM_PFDS];
 	char *domain = NULL;
 	char hostname[256];
@@ -332,24 +387,52 @@ int main(int argc, char **argv)
 	pfds[CAST_PFD].fd = cast_conn_fd_get(ctx.cast_conn);
 	pfds[CAST_PFD].events = pfds[CTL_PFD].events = POLLIN | POLLPRI;
 
-	for (;;) {
-		status = poll(pfds, NUM_PFDS, 5000);
+	/* TODO This is where we should daemonize. */
+
+	while (ctx.run) {
+		status = poll(pfds, numfds, 5000 /* 5 seconds */);
 		if (status < 0) {
-			fprintf(stderr, "poll error: %s\n", strerror(errno));
-			break;
+			log_msg(&ctx, LOG_ERR,
+				"poll error: %s, aborting", strerror(errno));
+			abort();
 		} else if (status > 0) {
-			if (pfds[CAST_PFD].revents) {
-				handle_cast_message(ctx.cast_conn);
-			} else if (pfds[CTL_PFD].revents) {
-				handle_ctl_request(pfds[CTL_PFD].fd);
-			}
+			if (pfds[CAST_PFD].revents)
+				handle_cast_message(&ctx);
+			else if (pfds[CTL_PFD].revents)
+				handle_ctl_request(&ctx);
 		} else {
-			if (ping)
-				cast_conn_ping(ctx.cast_conn);
+			/*
+			 * Timeout - send the keep-alive message unless we
+			 * were told not to.
+			 */
+			if (ping) {
+				status = cast_msg_ping_send(ctx.cast_conn);
+				if (status != CAST_OK) {
+					log_msg(&ctx, LOG_ERR,
+						"error sending ping request: %s",
+						cast_strerror(status));
+				} else {
+					log_msg(&ctx, LOG_DEBUG,
+						"ping request sent");
+				}
+			}
 		}
+
+		/*
+		 * The DEFUNCT status means that the connection to chromecast
+		 * was broken. We still continue to listen for client requests,
+		 * but won't be able to send any more messages to chromecast.
+		 *
+		 * We want to let the user query the daemon status and request
+		 * us to quit manually - because of that we don't abort on our
+		 * own.
+		 */
+		if (ctx.status == CASTD_STATUS_DEFUNCT)
+			numfds--;
 	}
 
 	cast_conn_close(ctx.cast_conn);
+	close(ctx.ctl_sock);
 
 	return EXIT_SUCCESS;
 }

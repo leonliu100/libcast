@@ -332,7 +332,7 @@ int cast_conn_fd_get(struct cast_connection *conn)
 	return cast_ssl_connection_get_fd(conn->ssl_conn);
 }
 
-int cast_conn_ping(struct cast_connection *conn)
+int cast_msg_ping_send(struct cast_connection *conn)
 {
 	struct cast_message *msg;
 	int status;
@@ -343,6 +343,37 @@ int cast_conn_ping(struct cast_connection *conn)
 		return CAST_PTR_ERR(msg);
 
 	msg->payload = cast_payload_ping_new();
+	if (CAST_IS_ERR(msg->payload)) {
+		cast_msg_free(msg);
+		return CAST_PTR_ERR(msg->payload);
+	}
+
+	status = cast_msg_send(conn, msg);
+	cast_msg_free(msg);
+
+	return status;
+}
+
+int cast_msg_pong_respond(struct cast_connection *conn,
+			  struct cast_message *ping)
+{
+	struct cast_message *msg;
+	int status, ns, type;
+
+	ns = cast_msg_namespace_get(ping);
+	if (ns != CAST_MSG_NS_HEARTBEAT)
+		return -CAST_EINVAL;
+
+	type = cast_payload_type_get(cast_msg_payload_get(ping));
+	if (type != CAST_PAYLOAD_PING)
+		return -CAST_EINVAL;
+
+	msg = cast_msg_new(cast_msg_dst_get(ping),
+			   cast_msg_src_get(ping), CAST_MSG_NS_HEARTBEAT);
+	if (CAST_IS_ERR(msg))
+		return CAST_PTR_ERR(msg);
+
+	msg->payload = cast_payload_pong_new();
 	if (CAST_IS_ERR(msg->payload)) {
 		cast_msg_free(msg);
 		return CAST_PTR_ERR(msg->payload);

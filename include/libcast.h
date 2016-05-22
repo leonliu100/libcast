@@ -132,6 +132,11 @@ CAST_API int cast_msg_send(struct cast_connection *conn,
 
 CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
 
+CAST_API int cast_msg_ping_send(struct cast_connection *conn);
+
+CAST_API int cast_msg_pong_respond(struct cast_connection *conn,
+				   struct cast_message *ping);
+
 typedef struct cast_payload cast_payload;
 
 enum {
@@ -155,8 +160,6 @@ CAST_API struct cast_payload * cast_payload_pong_new(void);
 CAST_API void cast_payload_free(struct cast_payload *payload);
 
 CAST_API int cast_payload_type_get(struct cast_payload *payload);
-
-CAST_API int cast_conn_ping(struct cast_connection *conn);
 
 #ifdef __cplusplus
 }
