@@ -39,7 +39,7 @@ static const struct option longopts[] = {
 
 static const char *const optstr = "vht:m:dr";
 
-static void CAST_NORETURN print_version(void)
+CAST_NORETURN static void print_version(void)
 {
 	printf("lscast (libcast) %s\n", cast_version_str());
 	printf("Copyright (C) 2016 Bartosz Golaszewski\n");
@@ -47,7 +47,7 @@ static void CAST_NORETURN print_version(void)
 	exit(EXIT_SUCCESS);
 }
 
-static void CAST_NORETURN print_help(void)
+CAST_NORETURN static void print_help(void)
 {
 	printf("Usage: lscast [OPTIONS]\n\n");
 	printf("Options:\n");
