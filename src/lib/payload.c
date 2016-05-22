@@ -19,6 +19,38 @@ struct cast_payload {
 	json_object *obj;
 };
 
+struct payload_type {
+	const char *str;
+	int val;
+};
+
+static const struct payload_type payload_types[] = {
+	{
+		.str = "CLOSE",
+		.val = CAST_PAYLOAD_CLOSE,
+	},
+	{
+		.str = "PING",
+		.val = CAST_PAYLOAD_PING,
+	},
+	{
+		.str = "PONG",
+		.val = CAST_PAYLOAD_PONG,
+	}
+};
+
+static int payload_type_from_str(const char *type)
+{
+	unsigned int i;
+
+	for (i = 0; i < CAST_ARRAY_SIZE(payload_types); i++) {
+		if (strcmp(payload_types[i].str, type) == 0)
+			return payload_types[i].val;
+	}
+
+	return CAST_PAYLOAD_UNKNOWN;
+}
+
 static struct cast_payload * alloc_payload(void)
 {
 	struct cast_payload *payload;
@@ -82,9 +114,32 @@ void cast_payload_free(struct cast_payload *payload)
 	free(payload);
 }
 
-int cast_payload_type_get(struct cast_payload *payload CAST_UNUSED)
+int cast_payload_type_get(struct cast_payload *payload)
 {
-	return -1;
+	const char *type_str;
+	json_bool status;
+	json_object *obj;
+	int type;
+
+	obj = json_object_new_object();
+	if (!obj)
+		return -CAST_ENOMEM;
+
+	type = json_object_get_type(payload->obj);
+	if (type != json_type_object)
+		return -CAST_EINVAL;
+
+	status = json_object_object_get_ex(payload->obj, "type", &obj);
+	if (!status)
+		return -CAST_EINVAL;
+
+	type = json_object_get_type(obj);
+	if (type != json_type_string)
+		return -CAST_EINVAL;
+
+	type_str = json_object_get_string(obj);
+
+	return payload_type_from_str(type_str);
 }
 
 char * cast_payload_to_string(struct cast_payload *payload)

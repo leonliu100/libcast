@@ -133,6 +133,7 @@ CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
 typedef struct cast_payload cast_payload;
 
 enum {
+	CAST_PAYLOAD_UNKNOWN,
 	CAST_PAYLOAD_CLOSE,
 	CAST_PAYLOAD_PING,
 	CAST_PAYLOAD_PONG,

@@ -81,6 +81,9 @@ static void handle_cast_message(struct cast_connection *conn)
 			cast_strerror(CAST_PTR_ERR(msg)));
 	}
 
+	printf("message type: %d\n",
+	       cast_payload_type_get(cast_msg_payload_get(msg)));
+
 	cast_msg_free(msg);
 }
 
