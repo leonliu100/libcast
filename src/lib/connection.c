@@ -25,6 +25,7 @@ struct cast_connection {
 
 struct cast_message {
 	CastMessage *pbmsg;
+	cast_payload *payload;
 };
 
 struct msg_data {
@@ -164,8 +165,8 @@ int cast_msg_payload_str_set(struct cast_message *msg, const char *payload)
 
 void cast_msg_free(struct cast_message *msg)
 {
-	if (msg->pbmsg->payload_utf8)
-		free(msg->pbmsg->payload_utf8);
+	if (msg->payload)
+		cast_payload_free(msg->payload);
 
 	free(msg->pbmsg);
 	free(msg);
@@ -207,6 +208,10 @@ struct cast_message * cast_msg_receive(struct cast_connection *conn)
 
 	dump_message("message received:", msg);
 
+	msg->payload = cast_payload_from_string(msg->pbmsg->payload_utf8);
+	if (CAST_IS_ERR(msg->payload))
+		return (struct cast_message *)msg->payload;
+
 	return msg;
 }
 
@@ -215,6 +220,9 @@ int cast_msg_send(struct cast_connection *conn, struct cast_message *msg)
 	ssize_t sent, len;
 	uint32_t nlen;
 	void *buf;
+
+	msg->pbmsg->payload_type = CAST_MESSAGE__PAYLOAD_TYPE__STRING;
+	msg->pbmsg->payload_utf8 = cast_payload_to_string(msg->payload);
 
 	len = cast_message__get_packed_size(msg->pbmsg);
 	buf = malloc(len);
@@ -240,10 +248,20 @@ int cast_msg_send(struct cast_connection *conn, struct cast_message *msg)
 	return CAST_OK;
 }
 
+struct cast_payload * cast_msg_payload_get(struct cast_message *msg)
+{
+	return msg->payload;
+}
+
+void cast_msg_payload_set(struct cast_message *msg,
+			  struct cast_payload *payload)
+{
+	msg->payload = payload;
+}
+
 static int send_handshake(struct cast_connection *conn)
 {
 	struct cast_message *msg;
-	char *payload;
 	int status;
 
 	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
@@ -251,17 +269,10 @@ static int send_handshake(struct cast_connection *conn)
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
-	payload = cast_json_make_connect_payload();
-	if (CAST_IS_ERR(payload)) {
+	msg->payload = cast_payload_connect_new();
+	if (CAST_IS_ERR(msg->payload)) {
 		cast_msg_free(msg);
-		return CAST_PTR_ERR(payload);
-	}
-
-	status = cast_msg_payload_str_set(msg, payload);
-	free(payload);
-	if (status != CAST_OK) {
-		cast_msg_free(msg);
-		return status;
+		return CAST_PTR_ERR(msg->payload);
 	}
 
 	status = cast_msg_send(conn, msg);
@@ -311,7 +322,6 @@ int cast_conn_fd_get(struct cast_connection *conn)
 int cast_conn_ping(struct cast_connection *conn)
 {
 	struct cast_message *msg;
-	char *payload;
 	int status;
 
 	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
@@ -319,17 +329,10 @@ int cast_conn_ping(struct cast_connection *conn)
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
-	payload = cast_json_make_ping_payload();
-	if (CAST_IS_ERR(payload)) {
+	msg->payload = cast_payload_ping_new();
+	if (CAST_IS_ERR(msg->payload)) {
 		cast_msg_free(msg);
-		return CAST_PTR_ERR(payload);
-	}
-
-	status = cast_msg_payload_str_set(msg, payload);
-	free(payload);
-	if (status != CAST_OK) {
-		cast_msg_free(msg);
-		return status;
+		return CAST_PTR_ERR(msg->payload);
 	}
 
 	status = cast_msg_send(conn, msg);

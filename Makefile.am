@@ -15,7 +15,7 @@ libcast_la_SOURCES = \
 	src/lib/version.c \
 	src/lib/connection.c \
 	src/lib/ssl.c \
-	src/lib/json.c \
+	src/lib/payload.c \
 	src/lib/message.pb-c.c
 
 CLEANFILES = src/lib/message.pb-c.c src/lib/message.pb-c.h

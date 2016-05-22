@@ -125,13 +125,33 @@ CAST_API int cast_msg_src_get(struct cast_message *msg);
 
 CAST_API int cast_msg_dst_get(struct cast_message *msg);
 
-CAST_API int cast_msg_payload_str_set(struct cast_message *msg,
-				      const char *payload);
-
 CAST_API int cast_msg_send(struct cast_connection *conn,
 			   struct cast_message *msg);
 
 CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
+
+typedef struct cast_payload cast_payload;
+
+enum {
+	CAST_PAYLOAD_CLOSE,
+	CAST_PAYLOAD_PING,
+	CAST_PAYLOAD_PONG,
+};
+
+CAST_API struct cast_payload * cast_msg_payload_get(struct cast_message *msg);
+
+CAST_API void cast_msg_payload_set(struct cast_message *msg,
+				   struct cast_payload *payload);
+
+CAST_API struct cast_payload * cast_payload_close_new(void);
+
+CAST_API struct cast_payload * cast_payload_ping_new(void);
+
+CAST_API struct cast_payload * cast_payload_pong_new(void);
+
+CAST_API void cast_payload_free(struct cast_payload *payload);
+
+CAST_API int cast_payload_type_get(struct cast_payload *payload);
 
 CAST_API int cast_conn_ping(struct cast_connection *conn);
 
