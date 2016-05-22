@@ -17,9 +17,12 @@
 
 static const char *const env_name = "CAST_LOG_LEVEL";
 
+/* TODO Add some locking for the static variables below? */
+
 static int log_level;
 static int log_env_overridden;
 static cast_log_callback log_callback;
+static void *log_callback_priv;
 
 CAST_INIT_FUNC static void init_log_level(void)
 {
@@ -49,7 +52,7 @@ static void emit_msg(int level, const char *fmt, va_list va)
 	int current_level;
 	char buf[256];
 
-	current_level = __sync_fetch_and_add(&log_level, 0);
+	current_level = log_level;
 
 	vsnprintf(buf, sizeof(buf), fmt, va);
 
@@ -63,19 +66,19 @@ static void emit_msg(int level, const char *fmt, va_list va)
 	 * decide if he wants to suppress certain levels.
 	 */
 	if (log_callback)
-		log_callback(level, buf);
+		log_callback(level, buf, log_callback_priv);
 }
 
 void cast_log_level_set(int level)
 {
 	if (!log_env_overridden)
-		(void)__sync_val_compare_and_swap(&log_level,
-						  log_level, level);
+		log_level = level;
 }
 
-void cast_log_callback_set(cast_log_callback cb)
+void cast_log_callback_set(cast_log_callback cb, void *priv)
 {
-	(void)__sync_val_compare_and_swap(&log_callback, log_callback, cb);
+	log_callback = cb;
+	log_callback_priv = priv;
 }
 
 #if ENABLE_DEBUG

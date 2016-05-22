@@ -20,9 +20,11 @@
 extern "C" {
 #endif
 
-#define CAST_UNUSED	__attribute__((unused))
-#define CAST_API	__attribute__((visibility("default")))
-#define CAST_NORETURN	__attribute__((noreturn))
+#define CAST_UNUSED		__attribute__((unused))
+#define CAST_API		__attribute__((visibility("default")))
+#define CAST_NORETURN		__attribute__((noreturn))
+
+#define CAST_ARRAY_SIZE(x)	(sizeof(x) / sizeof(*(x)))
 
 enum {
 	CAST_OK = 0,
@@ -69,11 +71,11 @@ enum {
 	CAST_LOG_DUMP,
 };
 
-typedef void (*cast_log_callback)(int, const char *);
+typedef void (*cast_log_callback)(int, const char *, void *);
 
 CAST_API void cast_log_level_set(int level);
 
-CAST_API void cast_log_callback_set(cast_log_callback cb);
+CAST_API void cast_log_callback_set(cast_log_callback cb, void *priv);
 
 enum {
 	CAST_DISCOVER_CONTINUE = 0,

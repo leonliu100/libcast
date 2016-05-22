@@ -33,10 +33,93 @@ static const struct option longopts[] = {
 	{ "help",	no_argument,		NULL,	'h'	},
 	{ "domain",	required_argument,	NULL,	'd'	},
 	{ "no-ping",	no_argument,		NULL,	'p'	},
+	{ "log-level",	required_argument,	NULL,	'l'	},
 	{ NULL,		0,			NULL,	0	},
 };
 
-static const char *const optstr = "vhd:p";
+static const char *const optstr = "vhd:pl:";
+
+struct log_level {
+	int val;
+	const char *str;
+};
+#define LOG_INVAL INT_MAX
+
+static struct log_level log_levels[] = {
+	{
+		.val = CAST_LOG_NONE,
+		.str = "NONE",
+	},
+	{
+		.val = CAST_LOG_ERR,
+		.str = "ERROR",
+	},
+	{
+		.val = CAST_LOG_WARN,
+		.str = "WARN",
+	},
+	{
+		.val = CAST_LOG_INFO,
+		.str = "INFO",
+	},
+	{
+		.val = CAST_LOG_DBG,
+		.str = "DEBUG",
+	},
+	{
+		.val = CAST_LOG_DUMP,
+		.str = "DUMP",
+	}
+};
+
+static int parse_log_level(const char *name)
+{
+	unsigned int i;
+
+	for (i = 0; i < CAST_ARRAY_SIZE(log_levels); i++) {
+		if (strcmp(name, log_levels[i].str) == 0)
+			return log_levels[i].val;
+	}
+
+	return LOG_INVAL;
+}
+
+static const char * log_level_name(int level)
+{
+	unsigned int i;
+
+	for (i = 0; i < CAST_ARRAY_SIZE(log_levels); i++) {
+		if (level == log_levels[i].val)
+			return log_levels[i].str;
+	}
+
+	return "INVALID";
+}
+
+struct castd_context {
+	struct cast_connection *cast_conn;
+	int ctl_sock;
+	int log_level;
+};
+#define CASTD_CTX_INITIALIZER	{ NULL, 0, CAST_LOG_WARN }
+
+static void logmsg(struct castd_context *ctx, int level, const char *fmt, ...)
+{
+	va_list va;
+
+	if (level <= ctx->log_level) {
+		va_start(va, fmt);
+		fprintf(stderr, "castd [%s]\t", log_level_name(level));
+		vfprintf(stderr, fmt, va);
+		fprintf(stderr, "\n");
+		va_end(va);
+	}
+}
+
+static void lib_log_callback(int level, const char *msg, void *priv)
+{
+	logmsg((struct castd_context *)priv, level, msg);
+}
 
 CAST_NORETURN static void print_version(void)
 {
@@ -54,6 +137,8 @@ CAST_NORETURN static void print_help(void)
 	printf("\t-h, --help:\t\tprint this message and exit\n");
 	printf("\t-d, --domain=DOMAIN\tspecify the domain name (defaults to 'local')\n");
 	printf("\t-p, --no-ping\t\tdon't actively keep the connection alive - just respond to pings\n");
+	printf("\t-l, --log-level={DUMP|DEBUG|INFO|WARN|ERROR|NONE}\n");
+	printf("\t\t\t\t\tspecify the log level (default: warning)\n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -184,8 +269,8 @@ enum {
 
 int main(int argc, char **argv)
 {
+	struct castd_context ctx = CASTD_CTX_INITIALIZER;
 	int opt_ind, opt_char, status, ping = 1;
-	struct cast_connection *cast_conn;
 	struct pollfd pfds[NUM_PFDS];
 	char *domain = NULL;
 	char hostname[256];
@@ -206,6 +291,14 @@ int main(int argc, char **argv)
 		case 'p':
 			ping = 0;
 			break;
+		case 'l':
+			ctx.log_level = parse_log_level(optarg);
+			if (ctx.log_level == LOG_INVAL) {
+				err_msg_and_die(argv[0],
+						"invalid log level: %s\n",
+						optarg);
+			}
+			break;
 		case '?':
 			return EXIT_FAILURE;
 		default:
@@ -213,27 +306,30 @@ int main(int argc, char **argv)
 		}
 	}
 
+	cast_log_callback_set(lib_log_callback, &ctx);
+
 	if (optind != (argc-1))
 		err_msg_and_die(argv[0], "friendly name must be specified\n");
 
 	snprintf(hostname, sizeof(hostname), "%s.%s",
 		 argv[optind], domain ? domain : "local");
 
-	pfds[CTL_PFD].fd = create_ctl_socket(hostname);
-	if (pfds[CTL_PFD].fd < 0) {
+	ctx.ctl_sock = create_ctl_socket(hostname);
+	if (ctx.ctl_sock < 0) {
 		err_msg_and_die(argv[0],
 				"cannot establish control socket: %s\n",
 				strerror(errno));
 	}
 
-	cast_conn = cast_conn_connect(hostname);
-	if (CAST_IS_ERR(cast_conn)) {
+	ctx.cast_conn = cast_conn_connect(hostname);
+	if (CAST_IS_ERR(ctx.cast_conn)) {
 		close(pfds[CTL_PFD].fd);
 		err_msg_and_die(argv[0], "cast connection error: %s\n",
-				cast_strerror(CAST_PTR_ERR(cast_conn)));
+				cast_strerror(CAST_PTR_ERR(ctx.cast_conn)));
 	}
-	pfds[CAST_PFD].fd = cast_conn_fd_get(cast_conn);
 
+	pfds[CTL_PFD].fd = ctx.ctl_sock;
+	pfds[CAST_PFD].fd = cast_conn_fd_get(ctx.cast_conn);
 	pfds[CAST_PFD].events = pfds[CTL_PFD].events = POLLIN | POLLPRI;
 
 	for (;;) {
@@ -243,17 +339,17 @@ int main(int argc, char **argv)
 			break;
 		} else if (status > 0) {
 			if (pfds[CAST_PFD].revents) {
-				handle_cast_message(cast_conn);
+				handle_cast_message(ctx.cast_conn);
 			} else if (pfds[CTL_PFD].revents) {
 				handle_ctl_request(pfds[CTL_PFD].fd);
 			}
 		} else {
 			if (ping)
-				cast_conn_ping(cast_conn);
+				cast_conn_ping(ctx.cast_conn);
 		}
 	}
 
-	cast_conn_close(cast_conn);
+	cast_conn_close(ctx.cast_conn);
 
 	return EXIT_SUCCESS;
 }

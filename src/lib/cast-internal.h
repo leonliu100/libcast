@@ -21,8 +21,6 @@
 #define CAST_PRINTF_FUNC(s, f)	__attribute__((format(printf, s, f)))
 #define CAST_PACKED		__attribute__((packed))
 
-#define CAST_ARRAY_SIZE(x)	(sizeof(x) / sizeof(*(x)))
-
 static inline void * CAST_ERR_PTR(intptr_t error)
 {
 	return (void *)error;

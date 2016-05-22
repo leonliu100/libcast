@@ -54,22 +54,6 @@ AC_CHECK_FUNC([strdup], [], [AC_MSG_ERROR([strdup() unavailable])])
 AC_CHECK_FUNC([readdir], [], [AC_MSG_ERROR([readdir() unavailable])])
 AC_CHECK_FUNC([socket], [], [AC_MSG_ERROR([socket() unavailable])])
 
-AC_TRY_RUN([
-int main()
-{
-	unsigned long val = 1000, result;
-
-	result = __sync_add_and_fetch(&val, 1);
-	if (result != 1001)
-		return 1;
-
-	(void)__sync_val_compare_and_swap(&val, val, 2000);
-	if (val != 2000)
-		return 1;
-
-	return 0;
-}], [], [AC_MSG_ERROR([atomic builtins unavailable])])
-
 AC_FUNC_MALLOC
 
 AC_CHECK_LIB([avahi-common], [avahi_simple_poll_new], [],
