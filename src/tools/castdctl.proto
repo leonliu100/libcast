@@ -23,6 +23,7 @@ message CastdCtlStatusResp {
 message CastdCtlRequest {
 	enum Type {
 		STATUS = 0;
+		QUIT = 1;
 	}
 	required Type type = 1;
 }
@@ -30,6 +31,7 @@ message CastdCtlRequest {
 message CastdCtlResponse {
 	enum Type {
 		STATUS = 0;
+		QUIT = 1;
 	}
 	required Type type = 1;
 

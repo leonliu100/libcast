@@ -127,8 +127,16 @@ static struct ctl_command cmd_status = {
 	.help = "retrieve the cast daemon status info",
 };
 
+static struct ctl_command cmd_quit = {
+	.name = "quit",
+	.request_type = CASTD_CTL_REQUEST__TYPE__QUIT,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__QUIT,
+	.help = "request the cast daemon to quit",
+};
+
 static struct ctl_command *cmd_list[] = {
 	&cmd_status,
+	&cmd_quit,
 };
 
 static int cmd_list_compar(const void *p1, const void *p2)
