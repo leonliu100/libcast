@@ -229,10 +229,9 @@ int main(int argc, char **argv)
 	cast_conn = cast_conn_connect(hostname);
 	if (CAST_IS_ERR(cast_conn)) {
 		close(pfds[CTL_PFD].fd);
-		err_msg_and_die(argv[0], "connection error: %s\n",
+		err_msg_and_die(argv[0], "cast connection error: %s\n",
 				cast_strerror(CAST_PTR_ERR(cast_conn)));
 	}
-
 	pfds[CAST_PFD].fd = cast_conn_fd_get(cast_conn);
 
 	pfds[CAST_PFD].events = pfds[CTL_PFD].events = POLLIN | POLLPRI;
