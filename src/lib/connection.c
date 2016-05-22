@@ -184,64 +184,77 @@ static void dump_message(const char *hdr, struct cast_message *msg)
 struct cast_message * cast_msg_receive(struct cast_connection *conn)
 {
 	struct cast_message *msg;
-	uint8_t buf[1024];
 	ssize_t recvd;
 	uint32_t len;
+	uint8_t *buf;
 
-	memset(buf, 0, sizeof(buf));
 	recvd = cast_ssl_full_read(conn->ssl_conn, &len, sizeof(uint32_t));
-	if (recvd != sizeof(uint32_t))
+	if (recvd != sizeof(len))
 		return CAST_ERR_PTR(-CAST_ESHORTREAD);
 
 	len = ntohl(len);
-	recvd = cast_ssl_full_read(conn->ssl_conn, buf, len);
-	if (recvd != len)
-		return CAST_ERR_PTR(-CAST_ESHORTREAD);
 
-	msg = malloc(sizeof(struct cast_message));
-	if (!msg)
+	buf = malloc(len);
+	if (!buf)
 		return CAST_ERR_PTR(-CAST_ENOMEM);
+
+	recvd = cast_ssl_full_read(conn->ssl_conn, buf, len);
+	if (recvd != len) {
+		free(buf);
+		return CAST_ERR_PTR(-CAST_ESHORTREAD);
+	}
+
+	msg = malloc(sizeof(*msg));
+	if (!msg) {
+		free(buf);
+		return CAST_ERR_PTR(-CAST_ENOMEM);
+	}
 
 	msg->pbmsg = cast_message__unpack(NULL, len, buf);
-	if (!msg)
-		return CAST_ERR_PTR(-CAST_ENOMEM);
+	free(buf);
+	if (!msg->pbmsg) {
+		free(msg);
+		return CAST_ERR_PTR(-CAST_EINVAL);
+	}
 
 	dump_message("message received:", msg);
 
 	msg->payload = cast_payload_from_string(msg->pbmsg->payload_utf8);
-	if (CAST_IS_ERR(msg->payload))
+	if (CAST_IS_ERR(msg->payload)) {
+		free(msg);
 		return (struct cast_message *)msg->payload;
+	}
 
 	return msg;
 }
 
+struct msg_buf {
+	uint32_t size;
+	uint8_t data[0];
+} CAST_PACKED;
+
 int cast_msg_send(struct cast_connection *conn, struct cast_message *msg)
 {
+	struct msg_buf *buf;
 	ssize_t sent, len;
-	uint32_t nlen;
-	void *buf;
 
 	msg->pbmsg->payload_type = CAST_MESSAGE__PAYLOAD_TYPE__STRING;
 	msg->pbmsg->payload_utf8 = cast_payload_to_string(msg->payload);
 
 	len = cast_message__get_packed_size(msg->pbmsg);
-	buf = malloc(len);
+	buf = malloc(len + sizeof(buf->size));
 	if (!buf)
 		return -CAST_ENOMEM;
 
-	cast_message__pack(msg->pbmsg, buf);
-	nlen = htonl(len);
+	cast_message__pack(msg->pbmsg, buf->data);
+	buf->size = htonl(len);
 
-	sent = cast_ssl_full_write(conn->ssl_conn, &nlen, sizeof(uint32_t));
-	if (sent != sizeof(uint32_t)) {
+	sent = cast_ssl_full_write(conn->ssl_conn, buf,
+				   len + sizeof(buf->size));
+	if (sent != (ssize_t)(len + sizeof(buf->size))) {
 		free(buf);
 		return -CAST_ESHORTWRITE;
 	}
-
-	sent = cast_ssl_full_write(conn->ssl_conn, buf, len);
-	free(buf);
-	if (sent != len)
-		return -CAST_ESHORTWRITE;
 
 	dump_message("message sent:", msg);
 
