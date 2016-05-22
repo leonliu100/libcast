@@ -32,10 +32,11 @@ static const struct option longopts[] = {
 	{ "version",	no_argument,		NULL,	'v'	},
 	{ "help",	no_argument,		NULL,	'h'	},
 	{ "domain",	required_argument,	NULL,	'd'	},
+	{ "no-ping",	no_argument,		NULL,	'p'	},
 	{ NULL,		0,			NULL,	0	},
 };
 
-static const char *const optstr = "vhd:";
+static const char *const optstr = "vhd:p";
 
 CAST_NORETURN static void print_version(void)
 {
@@ -52,6 +53,7 @@ CAST_NORETURN static void print_help(void)
 	printf("\t-v, --version:\t\tprint version\n");
 	printf("\t-h, --help:\t\tprint this message and exit\n");
 	printf("\t-d, --domain=DOMAIN\tspecify the domain name (defaults to 'local')\n");
+	printf("\t-p, --no-ping\t\tdon't actively keep the connection alive - just respond to pings\n");
 
 	exit(EXIT_SUCCESS);
 }
@@ -179,8 +181,8 @@ enum {
 
 int main(int argc, char **argv)
 {
+	int opt_ind, opt_char, status, ping = 1;
 	struct cast_connection *cast_conn;
-	int opt_ind, opt_char, status;
 	struct pollfd pfds[NUM_PFDS];
 	char *domain = NULL;
 	char hostname[256];
@@ -197,6 +199,9 @@ int main(int argc, char **argv)
 			print_help();
 		case 'd':
 			domain = optarg;
+			break;
+		case 'p':
+			ping = 0;
 			break;
 		case '?':
 			return EXIT_FAILURE;
@@ -241,7 +246,8 @@ int main(int argc, char **argv)
 				handle_ctl_request(pfds[CTL_PFD].fd);
 			}
 		} else {
-			cast_conn_ping(cast_conn);
+			if (ping)
+				cast_conn_ping(cast_conn);
 		}
 	}
 
