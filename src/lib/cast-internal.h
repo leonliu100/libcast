@@ -20,6 +20,8 @@
 #define CAST_INIT_FUNC		__attribute__((constructor))
 #define CAST_PRINTF_FUNC(s, f)	__attribute__((format(printf, s, f)))
 
+#define CAST_ARRAY_SIZE(x)	(sizeof(x) / sizeof(*(x)))
+
 static inline void * CAST_ERR_PTR(intptr_t error)
 {
 	return (void *)error;

@@ -21,8 +21,8 @@ extern "C" {
 #endif
 
 #define CAST_UNUSED	__attribute__((unused))
-#define CAST_NORETURN	__attribute__((noreturn))
 #define CAST_API	__attribute__((visibility("default")))
+#define CAST_NORETURN	__attribute__((noreturn))
 
 enum {
 	CAST_OK = 0,
@@ -87,7 +87,7 @@ CAST_API int cast_discover(cast_discover_callback cb,
 
 CAST_API int cast_resolve(const char *hostname, uint32_t *ip_addr);
 
-struct cast_connection;
+typedef struct cast_connection cast_connection;
 
 CAST_API struct cast_connection * cast_conn_connect(const char *hostname);
 
@@ -95,27 +95,38 @@ CAST_API void cast_conn_close(struct cast_connection *conn);
 
 CAST_API int cast_conn_fd_get(struct cast_connection *conn);
 
-struct cast_message;
+typedef struct cast_message cast_message;
 
 enum {
-	CAST_MSG_NS_CONNECTION = 0,
+	CAST_MSG_NS_UNKNOWN = 0,
+	CAST_MSG_NS_CONNECTION,
 	CAST_MSG_NS_HEARTBEAT,
 };
 
-CAST_API struct cast_message * cast_msg_new(const char *src,
-					    const char *dst,
-					    const char *namespace);
+enum {
+	CAST_MSG_SRC_UNKNOWN = 0,
+	CAST_MSG_SRC_DEFAULT,
+	CAST_MSG_SRC_TRANSPORT,
+};
+
+enum {
+	CAST_MSG_DST_UNKNOWN = 0,
+	CAST_MSG_DST_DEFAULT,
+	CAST_MSG_DST_TRANSPORT,
+};
+
+CAST_API struct cast_message * cast_msg_new(int src, int dst, int namespace);
 
 CAST_API void cast_msg_free(struct cast_message *msg);
 
+CAST_API int cast_msg_namespace_get(struct cast_message *msg);
+
+CAST_API int cast_msg_src_get(struct cast_message *msg);
+
+CAST_API int cast_msg_dst_get(struct cast_message *msg);
+
 CAST_API int cast_msg_payload_str_set(struct cast_message *msg,
 				      const char *payload);
-
-CAST_API const char * cast_msg_default_sender(void);
-
-CAST_API const char * cast_msg_default_receiver(void);
-
-CAST_API const char * cast_msg_namespace_get(int namespace);
 
 CAST_API int cast_msg_send(struct cast_connection *conn,
 			   struct cast_message *msg);

@@ -27,8 +27,71 @@ struct cast_message {
 	CastMessage *pbmsg;
 };
 
-struct cast_message * cast_msg_new(const char *src,
-				   const char *dst, const char *namespace)
+struct msg_data {
+	int val;
+	char *repr;
+};
+
+static const struct msg_data namespaces[] = {
+	{
+		.val = CAST_MSG_NS_CONNECTION,
+		.repr = "urn:x-cast:com.google.cast.tp.connection",
+	},
+	{
+		.val = CAST_MSG_NS_HEARTBEAT,
+		.repr = "urn:x-cast:com.google.cast.tp.heartbeat",
+	}
+};
+
+static const struct msg_data sources[] = {
+	{
+		.val = CAST_MSG_SRC_DEFAULT,
+		.repr = "sender-0",
+	},
+	{
+		.val = CAST_MSG_SRC_TRANSPORT,
+		.repr = "Tr@n$p0rt-0",
+	}
+};
+
+static const struct msg_data destinations[] = {
+	{
+		.val = CAST_MSG_DST_DEFAULT,
+		.repr = "receiver-0",
+	},
+	{
+		.val = CAST_MSG_DST_TRANSPORT,
+		.repr = "Tr@n$p0rt-0",
+	}
+};
+
+static char * msg_data_find_repr(int val, const struct msg_data *data,
+				 size_t size)
+{
+	unsigned int i;
+
+	for (i = 0; i < size; i++) {
+		if (data[i].val == val)
+			return data[i].repr;
+	}
+
+	return NULL;
+}
+
+static int msg_data_find_val(const char *repr,
+			     const struct msg_data *data, size_t size)
+{
+	unsigned int i;
+
+	for (i = 0; i < size; i++) {
+		if (strcmp(data[i].repr, repr) == 0)
+			return data[i].val;
+	}
+
+	return -1;
+}
+
+struct cast_message * cast_msg_new(int src, int dst, int namespace)
 {
 	struct cast_message *msg;
 
@@ -43,34 +106,50 @@ struct cast_message * cast_msg_new(const char *src,
 	cast_message__init(msg->pbmsg);
 	msg->pbmsg->protocol_version = CAST_PROTOCOL_DEFAULT;
 
-	msg->pbmsg->source_id = strdup(src);
-	if (!msg->pbmsg->source_id)
-		goto nomem_pbmsg;
+	msg->pbmsg->source_id = msg_data_find_repr(src, sources,
+						   CAST_ARRAY_SIZE(sources));
+	msg->pbmsg->destination_id = msg_data_find_repr(dst, destinations,
+						CAST_ARRAY_SIZE(destinations));
+	msg->pbmsg->namespace_ = msg_data_find_repr(namespace, namespaces,
+						CAST_ARRAY_SIZE(namespaces));
 
-	msg->pbmsg->destination_id = strdup(dst);
-	if (!msg->pbmsg->destination_id)
-		goto nomem_src;
-
-	msg->pbmsg->namespace_ = strdup(namespace);
-	if (!msg->pbmsg->namespace_)
-		goto nomem_dst;
+	if (!msg->pbmsg->source_id ||
+	    !msg->pbmsg->destination_id ||
+	    !msg->pbmsg->namespace_)
+		return CAST_ERR_PTR(-CAST_EINVAL);
 
 	return msg;
-
-nomem_dst:
-	free(msg->pbmsg->destination_id);
-
-nomem_src:
-	free(msg->pbmsg->source_id);
-
-nomem_pbmsg:
-	free(msg->pbmsg);
 
 nomem_msg:
 	free(msg);
 
 nomem:
 	return CAST_ERR_PTR(-CAST_ENOMEM);
+}
+
+int cast_msg_namespace_get(struct cast_message *msg)
+{
+	int ns = msg_data_find_val(msg->pbmsg->namespace_,
+				   namespaces, CAST_ARRAY_SIZE(namespaces));
+
+	return ns < 0 ? CAST_MSG_NS_UNKNOWN : ns;
+}
+
+int cast_msg_src_get(struct cast_message *msg)
+{
+	int src = msg_data_find_val(msg->pbmsg->source_id,
+				    sources, CAST_ARRAY_SIZE(sources));
+
+	return src < 0 ? CAST_MSG_SRC_UNKNOWN : src;
+}
+
+int cast_msg_dst_get(struct cast_message *msg)
+{
+	int dst = msg_data_find_val(msg->pbmsg->destination_id,
+				    destinations,
+				    CAST_ARRAY_SIZE(destinations));
+
+	return dst < 0 ? CAST_MSG_DST_UNKNOWN : dst;
 }
 
 int cast_msg_payload_str_set(struct cast_message *msg, const char *payload)
@@ -85,37 +164,11 @@ int cast_msg_payload_str_set(struct cast_message *msg, const char *payload)
 
 void cast_msg_free(struct cast_message *msg)
 {
-	free(msg->pbmsg->namespace_);
-	free(msg->pbmsg->destination_id);
-	free(msg->pbmsg->source_id);
-
 	if (msg->pbmsg->payload_utf8)
 		free(msg->pbmsg->payload_utf8);
 
 	free(msg->pbmsg);
 	free(msg);
-}
-
-const char * cast_msg_default_sender(void)
-{
-	return "sender-0";
-}
-
-const char * cast_msg_default_receiver(void)
-{
-	return "receiver-0";
-}
-
-const char * cast_msg_namespace_get(int namespace)
-{
-	switch (namespace) {
-	case CAST_MSG_NS_CONNECTION:
-		return "urn:x-cast:com.google.cast.tp.connection";
-	case CAST_MSG_NS_HEARTBEAT:
-		return "urn:x-cast:com.google.cast.tp.heartbeat";
-	default:
-		return CAST_ERR_PTR(-CAST_EINVAL);
-	}
 }
 
 static void dump_message(const char *hdr, struct cast_message *msg)
@@ -193,9 +246,8 @@ static int send_handshake(struct cast_connection *conn)
 	char *payload;
 	int status;
 
-	msg = cast_msg_new(cast_msg_default_sender(),
-			   cast_msg_default_receiver(),
-			   cast_msg_namespace_get(CAST_MSG_NS_CONNECTION));
+	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
+			   CAST_MSG_DST_DEFAULT, CAST_MSG_NS_CONNECTION);
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
@@ -262,9 +314,8 @@ int cast_conn_ping(struct cast_connection *conn)
 	char *payload;
 	int status;
 
-	msg = cast_msg_new(cast_msg_default_sender(),
-			   cast_msg_default_receiver(),
-			   cast_msg_namespace_get(CAST_MSG_NS_HEARTBEAT));
+	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
+			   CAST_MSG_DST_DEFAULT, CAST_MSG_NS_HEARTBEAT);
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
