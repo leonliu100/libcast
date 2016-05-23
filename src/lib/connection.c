@@ -98,11 +98,13 @@ struct cast_message * cast_msg_new(int src, int dst, int namespace)
 
 	msg = malloc(sizeof(struct cast_message));
 	if (!msg)
-		goto nomem;
+		return CAST_ERR_PTR(-CAST_ENOMEM);
 
 	msg->pbmsg = malloc(sizeof(CastMessage));
-	if (!msg->pbmsg)
-		goto nomem_msg;
+	if (!msg->pbmsg) {
+		free(msg);
+		return CAST_ERR_PTR(-CAST_ENOMEM);
+	}
 
 	cast_message__init(msg->pbmsg);
 	msg->pbmsg->protocol_version = CAST_PROTOCOL_DEFAULT;
@@ -116,16 +118,13 @@ struct cast_message * cast_msg_new(int src, int dst, int namespace)
 
 	if (!msg->pbmsg->source_id ||
 	    !msg->pbmsg->destination_id ||
-	    !msg->pbmsg->namespace_)
+	    !msg->pbmsg->namespace_) {
+		free(msg->pbmsg);
+		free(msg);
 		return CAST_ERR_PTR(-CAST_EINVAL);
+	}
 
 	return msg;
-
-nomem_msg:
-	free(msg);
-
-nomem:
-	return CAST_ERR_PTR(-CAST_ENOMEM);
 }
 
 int cast_msg_namespace_get(struct cast_message *msg)
