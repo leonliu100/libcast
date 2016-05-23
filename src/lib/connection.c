@@ -181,7 +181,7 @@ static void dump_message(const char *hdr, struct cast_message *msg)
 	cast_dump("  %-16s%s", "payload:", msg->pbmsg->payload_utf8);
 }
 
-struct cast_message * cast_msg_receive(struct cast_connection *conn)
+struct cast_message * cast_conn_msg_recv(struct cast_connection *conn)
 {
 	struct cast_message *msg;
 	ssize_t recvd;
@@ -233,7 +233,7 @@ struct msg_buf {
 	uint8_t data[0];
 } CAST_PACKED;
 
-int cast_msg_send(struct cast_connection *conn, struct cast_message *msg)
+int cast_conn_msg_send(struct cast_connection *conn, struct cast_message *msg)
 {
 	struct msg_buf *buf;
 	ssize_t sent, len;
@@ -288,7 +288,7 @@ static int send_handshake(struct cast_connection *conn)
 		return CAST_PTR_ERR(msg->payload);
 	}
 
-	status = cast_msg_send(conn, msg);
+	status = cast_conn_msg_send(conn, msg);
 	cast_msg_free(msg);
 
 	return status;
@@ -348,7 +348,7 @@ int cast_msg_ping_send(struct cast_connection *conn)
 		return CAST_PTR_ERR(msg->payload);
 	}
 
-	status = cast_msg_send(conn, msg);
+	status = cast_conn_msg_send(conn, msg);
 	cast_msg_free(msg);
 
 	return status;
@@ -379,7 +379,7 @@ int cast_msg_pong_respond(struct cast_connection *conn,
 		return CAST_PTR_ERR(msg->payload);
 	}
 
-	status = cast_msg_send(conn, msg);
+	status = cast_conn_msg_send(conn, msg);
 	cast_msg_free(msg);
 
 	return status;

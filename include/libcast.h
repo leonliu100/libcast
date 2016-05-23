@@ -89,13 +89,24 @@ CAST_API int cast_discover(cast_discover_callback cb,
 
 CAST_API int cast_resolve(const char *hostname, uint32_t *ip_addr);
 
-typedef struct cast_connection cast_connection;
+typedef struct cast_payload cast_payload;
 
-CAST_API struct cast_connection * cast_conn_connect(const char *hostname);
+enum {
+	CAST_PAYLOAD_UNKNOWN,
+	CAST_PAYLOAD_CLOSE,
+	CAST_PAYLOAD_PING,
+	CAST_PAYLOAD_PONG,
+};
 
-CAST_API void cast_conn_close(struct cast_connection *conn);
+CAST_API struct cast_payload * cast_payload_close_new(void);
 
-CAST_API int cast_conn_fd_get(struct cast_connection *conn);
+CAST_API struct cast_payload * cast_payload_ping_new(void);
+
+CAST_API struct cast_payload * cast_payload_pong_new(void);
+
+CAST_API void cast_payload_free(struct cast_payload *payload);
+
+CAST_API int cast_payload_type_get(struct cast_payload *payload);
 
 typedef struct cast_message cast_message;
 
@@ -127,39 +138,28 @@ CAST_API int cast_msg_src_get(struct cast_message *msg);
 
 CAST_API int cast_msg_dst_get(struct cast_message *msg);
 
-CAST_API int cast_msg_send(struct cast_connection *conn,
-			   struct cast_message *msg);
-
-CAST_API struct cast_message * cast_msg_receive(struct cast_connection *conn);
-
-CAST_API int cast_msg_ping_send(struct cast_connection *conn);
-
-CAST_API int cast_msg_pong_respond(struct cast_connection *conn,
-				   struct cast_message *ping);
-
-typedef struct cast_payload cast_payload;
-
-enum {
-	CAST_PAYLOAD_UNKNOWN,
-	CAST_PAYLOAD_CLOSE,
-	CAST_PAYLOAD_PING,
-	CAST_PAYLOAD_PONG,
-};
-
 CAST_API struct cast_payload * cast_msg_payload_get(struct cast_message *msg);
 
 CAST_API void cast_msg_payload_set(struct cast_message *msg,
 				   struct cast_payload *payload);
 
-CAST_API struct cast_payload * cast_payload_close_new(void);
+typedef struct cast_connection cast_connection;
 
-CAST_API struct cast_payload * cast_payload_ping_new(void);
+CAST_API struct cast_connection * cast_conn_connect(const char *hostname);
 
-CAST_API struct cast_payload * cast_payload_pong_new(void);
+CAST_API void cast_conn_close(struct cast_connection *conn);
 
-CAST_API void cast_payload_free(struct cast_payload *payload);
+CAST_API int cast_conn_fd_get(struct cast_connection *conn);
 
-CAST_API int cast_payload_type_get(struct cast_payload *payload);
+CAST_API int cast_conn_msg_send(struct cast_connection *conn,
+				struct cast_message *msg);
+
+CAST_API struct cast_message * cast_conn_msg_recv(struct cast_connection *conn);
+
+CAST_API int cast_msg_ping_send(struct cast_connection *conn);
+
+CAST_API int cast_msg_pong_respond(struct cast_connection *conn,
+				   struct cast_message *ping);
 
 #ifdef __cplusplus
 }

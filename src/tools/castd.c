@@ -205,7 +205,7 @@ static void handle_cast_message(struct castd_context *ctx)
 	cast_message *msg;
 	int ns;
 
-	msg = cast_msg_recv(ctx->cast_conn);
+	msg = cast_conn_msg_recv(ctx->cast_conn);
 	if (CAST_IS_ERR(msg)) {
 		log_msg(ctx, LOG_ERR, "error receiving message: %s",
 			cast_strerror(CAST_PTR_ERR(msg)));
