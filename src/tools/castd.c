@@ -112,7 +112,7 @@ enum {
 };
 
 struct castd_context {
-	struct cast_connection *cast_conn;
+	cast_connection *cast_conn;
 	int ctl_sock;
 	int log_level;
 	int run;
@@ -173,8 +173,7 @@ CAST_NORETURN static void err_msg_and_die(const char *progname,
 	exit(EXIT_FAILURE);
 }
 
-static void handle_heartbeat_msg(struct castd_context *ctx,
-				 struct cast_message *msg)
+static void handle_heartbeat_msg(struct castd_context *ctx, cast_message *msg)
 {
 	int type, status;
 
@@ -203,10 +202,10 @@ static void handle_heartbeat_msg(struct castd_context *ctx,
 
 static void handle_cast_message(struct castd_context *ctx)
 {
-	struct cast_message *msg;
+	cast_message *msg;
 	int ns;
 
-	msg = cast_msg_receive(ctx->cast_conn);
+	msg = cast_msg_recv(ctx->cast_conn);
 	if (CAST_IS_ERR(msg)) {
 		log_msg(ctx, LOG_ERR, "error receiving message: %s",
 			cast_strerror(CAST_PTR_ERR(msg)));
