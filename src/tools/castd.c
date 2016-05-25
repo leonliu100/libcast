@@ -114,17 +114,18 @@ enum {
 struct castd_context {
 	cast_connection *cast_conn;
 	int ctl_sock;
-	int log_level;
 	int run;
 	int status;
 };
-#define CASTD_CTX_INITIALIZER	{ NULL, 0, CAST_LOG_WARN, 1, CASTD_STATUS_OK }
+#define CASTD_CTX_INITIALIZER	{ NULL, 0, 1, CASTD_STATUS_OK }
 
-static void log_msg(struct castd_context *ctx, int level, const char *fmt, ...)
+static int log_level = LOG_WARN;
+
+static void log_msg(int level, const char *fmt, ...)
 {
 	va_list va;
 
-	if (level <= ctx->log_level) {
+	if (level <= log_level) {
 		va_start(va, fmt);
 		fprintf(stderr, "castd [%s]\t", log_level_name(level));
 		vfprintf(stderr, fmt, va);
@@ -133,9 +134,10 @@ static void log_msg(struct castd_context *ctx, int level, const char *fmt, ...)
 	}
 }
 
-static void lib_log_callback(int level, const char *msg, void *priv)
+static void lib_log_callback(int level,
+			     const char *msg, void *priv CAST_UNUSED)
 {
-	log_msg((struct castd_context *)priv, level, msg);
+	log_msg(level, msg);
 }
 
 CAST_NORETURN static void print_version(void)
@@ -181,22 +183,22 @@ static void handle_heartbeat_msg(struct castd_context *ctx, cast_message *msg)
 
 	switch (type) {
 	case CAST_PAYLOAD_PING:
-		log_msg(ctx, LOG_DEBUG, "ping request received");
+		log_msg(LOG_DEBUG, "ping request received");
 		status = cast_msg_pong_respond(ctx->cast_conn, msg);
 		if (status != CAST_OK) {
-			log_msg(ctx, LOG_ERR,
+			log_msg(LOG_ERR,
 				"error responding to ping request: %s",
 				cast_strerror(status));
 		} else {
-			log_msg(ctx, LOG_DEBUG, "pong request sent");
+			log_msg(LOG_DEBUG, "pong request sent");
 		}
 		break;
 	case CAST_PAYLOAD_PONG:
 		/* TODO Detect broken connections. */
-		log_msg(ctx, LOG_DEBUG, "pong response received");
+		log_msg(LOG_DEBUG, "pong response received");
 		break;
 	default:
-		log_msg(ctx, LOG_WARN, "dropping unknown heartbeat message");
+		log_msg(LOG_WARN, "dropping unknown heartbeat message");
 	}
 }
 
@@ -207,7 +209,7 @@ static void handle_cast_message(struct castd_context *ctx)
 
 	msg = cast_conn_msg_recv(ctx->cast_conn);
 	if (CAST_IS_ERR(msg)) {
-		log_msg(ctx, LOG_ERR, "error receiving message: %s",
+		log_msg(LOG_ERR, "error receiving message: %s",
 			cast_strerror(CAST_PTR_ERR(msg)));
 		return;
 	}
@@ -219,8 +221,7 @@ static void handle_cast_message(struct castd_context *ctx)
 		handle_heartbeat_msg(ctx, msg);
 		break;
 	default:
-		log_msg(ctx, LOG_WARN,
-			"dropping message from unknown namespace");
+		log_msg(LOG_WARN, "dropping message from unknown namespace");
 	}
 
 	cast_msg_free(msg);
@@ -346,8 +347,8 @@ int main(int argc, char **argv)
 			ping = 0;
 			break;
 		case 'l':
-			ctx.log_level = parse_log_level(optarg);
-			if (ctx.log_level == LOG_INVAL) {
+			log_level = parse_log_level(optarg);
+			if (log_level == LOG_INVAL) {
 				err_msg_and_die(argv[0],
 						"invalid log level: %s\n",
 						optarg);
@@ -391,7 +392,7 @@ int main(int argc, char **argv)
 	while (ctx.run) {
 		status = poll(pfds, numfds, 5000 /* 5 seconds */);
 		if (status < 0) {
-			log_msg(&ctx, LOG_ERR,
+			log_msg(LOG_ERR,
 				"poll error: %s, aborting", strerror(errno));
 			abort();
 		} else if (status > 0) {
@@ -407,11 +408,11 @@ int main(int argc, char **argv)
 			if (ping) {
 				status = cast_msg_ping_send(ctx.cast_conn);
 				if (status != CAST_OK) {
-					log_msg(&ctx, LOG_ERR,
+					log_msg(LOG_ERR,
 						"error sending ping request: %s",
 						cast_strerror(status));
 				} else {
-					log_msg(&ctx, LOG_DEBUG,
+					log_msg(LOG_DEBUG,
 						"ping request sent");
 				}
 			}
