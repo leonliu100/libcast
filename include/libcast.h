@@ -154,7 +154,8 @@ CAST_API int cast_conn_fd_get(struct cast_connection *conn);
 CAST_API int cast_conn_msg_send(struct cast_connection *conn,
 				struct cast_message *msg);
 
-CAST_API struct cast_message * cast_conn_msg_recv(struct cast_connection *conn);
+CAST_API struct cast_message *
+cast_conn_msg_recv(struct cast_connection *conn);
 
 CAST_API int cast_msg_ping_send(struct cast_connection *conn);
 
