@@ -378,6 +378,8 @@ int main(int argc, char **argv)
 	iores = recv(sock, &msg->size, sizeof(msg->size), 0);
 	if (iores < 0)
 		err_msg_and_die("receiving message: %s\n", strerror(errno));
+	else if (iores == 0)
+		err_msg_and_die("connection closed by castd\n");
 	else if (iores != sizeof(msg->size))
 		err_msg_and_die("didn't receive the whole message header\n");
 
@@ -390,6 +392,8 @@ int main(int argc, char **argv)
 	iores = recv(sock, msg->buf, len, MSG_DONTWAIT);
 	if (iores < 0)
 		err_msg_and_die("receiving message: %s\n", strerror(errno));
+	else if (iores == 0)
+		err_msg_and_die("connection closed by castd\n");
 	else if (iores != len)
 		err_msg_and_die("didn't receive the whole message\n");
 
