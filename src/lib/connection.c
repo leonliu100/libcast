@@ -25,6 +25,7 @@ struct cast_connection {
 
 struct cast_message {
 	CastMessage *pbmsg;
+	int needs_pb_free;
 	cast_payload *payload;
 };
 
@@ -105,6 +106,7 @@ struct cast_message * cast_msg_new(int src, int dst, int namespace)
 		free(msg);
 		return CAST_ERR_PTR(-CAST_ENOMEM);
 	}
+	msg->needs_pb_free = 0;
 
 	cast_message__init(msg->pbmsg);
 	msg->pbmsg->protocol_version = CAST_PROTOCOL_DEFAULT;
@@ -167,7 +169,13 @@ void cast_msg_free(struct cast_message *msg)
 	if (msg->payload)
 		cast_payload_free(msg->payload);
 
-	free(msg->pbmsg);
+	if (msg->pbmsg) {
+		if (msg->needs_pb_free)
+			cast_message__free_unpacked(msg->pbmsg, NULL);
+		else
+			free(msg->pbmsg);
+	}
+
 	free(msg);
 }
 
@@ -212,15 +220,16 @@ struct cast_message * cast_conn_msg_recv(struct cast_connection *conn)
 	msg->pbmsg = cast_message__unpack(NULL, len, buf);
 	free(buf);
 	if (!msg->pbmsg) {
-		free(msg);
+		cast_msg_free(msg);
 		return CAST_ERR_PTR(-CAST_EINVAL);
 	}
+	msg->needs_pb_free = 1;
 
 	dump_message("message received:", msg);
 
 	msg->payload = cast_payload_from_string(msg->pbmsg->payload_utf8);
 	if (CAST_IS_ERR(msg->payload)) {
-		free(msg);
+		cast_msg_free(msg);
 		return (struct cast_message *)msg->payload;
 	}
 
@@ -236,24 +245,25 @@ int cast_conn_msg_send(struct cast_connection *conn, struct cast_message *msg)
 {
 	struct msg_buf *buf;
 	ssize_t sent, len;
+	size_t msgsize;
 
 	msg->pbmsg->payload_type = CAST_MESSAGE__PAYLOAD_TYPE__STRING;
 	msg->pbmsg->payload_utf8 = cast_payload_to_string(msg->payload);
 
 	len = cast_message__get_packed_size(msg->pbmsg);
-	buf = malloc(len + sizeof(buf->size));
+	msgsize = len + sizeof(buf->size);
+
+	buf = malloc(msgsize);
 	if (!buf)
 		return -CAST_ENOMEM;
 
 	cast_message__pack(msg->pbmsg, buf->data);
 	buf->size = htonl(len);
 
-	sent = cast_ssl_full_write(conn->ssl_conn, buf,
-				   len + sizeof(buf->size));
-	if (sent != (ssize_t)(len + sizeof(buf->size))) {
-		free(buf);
+	sent = cast_ssl_full_write(conn->ssl_conn, buf, msgsize);
+	free(buf);
+	if (sent != (ssize_t)msgsize)
 		return -CAST_ESHORTWRITE;
-	}
 
 	dump_message("message sent:", msg);
 

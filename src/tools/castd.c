@@ -267,14 +267,13 @@ struct ctl_command {
 	int response_type;
 	int (*handler)(CastdCtlRequest *,
 		       CastdCtlResponse *, struct castd_context *);
+	void (*resp_cleanup)(CastdCtlResponse *, struct castd_context *);
 };
 
-static int cmd_status_handler(CastdCtlRequest *req, CastdCtlResponse *resp,
-			       struct castd_context *ctx)
+static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
+			      CastdCtlResponse *resp,
+			      struct castd_context *ctx CAST_UNUSED)
 {
-	(void)req;
-	(void)ctx;
-
 	resp->status = malloc(sizeof(CastdCtlStatusResp));
 	if (!resp->status)
 		return -CASTD_CTL_ERROR_RESP__CODE__ENOMEM;
@@ -285,18 +284,24 @@ static int cmd_status_handler(CastdCtlRequest *req, CastdCtlResponse *resp,
 	return 0;
 }
 
+static void cmd_status_resp_cleanup(CastdCtlResponse *resp,
+				    struct castd_context *ctx CAST_UNUSED)
+{
+	if (resp->status)
+		free(resp->status);
+}
+
 static struct ctl_command cmd_status = {
 	.request_type = CASTD_CTL_REQUEST__TYPE__STATUS,
 	.response_type = CASTD_CTL_RESPONSE__TYPE__STATUS,
 	.handler = cmd_status_handler,
+	.resp_cleanup = cmd_status_resp_cleanup,
 };
 
-static int cmd_quit_handler(CastdCtlRequest *req, CastdCtlResponse *resp,
+static int cmd_quit_handler(CastdCtlRequest *req CAST_UNUSED,
+			    CastdCtlResponse *resp CAST_UNUSED,
 			    struct castd_context *ctx)
 {
-	(void)req;
-	(void)resp;
-
 	ctx->run = 0;
 
 	return 0;
@@ -370,7 +375,7 @@ static void handle_ctl_request(struct castd_context *ctx)
 {
 	struct ctl_command *cmd;
 	struct sockaddr_un addr;
-	socklen_t socklen;
+	socklen_t socklen = 0;
 	int sock, retval;
 	ssize_t status;
 	uint32_t hdr;
@@ -440,6 +445,8 @@ static void handle_ctl_request(struct castd_context *ctx)
 	if (!buf) {
 		log_msg(LOG_ERR,
 			"out of memory - cannot send response to client");
+		if (cmd->resp_cleanup)
+			cmd->resp_cleanup(&resp, ctx);
 		close(sock);
 		return;
 	}
@@ -456,6 +463,8 @@ static void handle_ctl_request(struct castd_context *ctx)
 		log_msg(LOG_WARN, "sending response: incomplete message sent");
 	}
 
+	if (cmd->resp_cleanup)
+		cmd->resp_cleanup(&resp, ctx);
 	close(sock);
 
 	return;
