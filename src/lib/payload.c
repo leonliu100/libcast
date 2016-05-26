@@ -68,7 +68,7 @@ static struct cast_payload * alloc_payload(void)
 	return payload;
 }
 
-struct cast_payload * make_simple_type_payload(const char *type)
+static struct cast_payload * make_simple_type_payload(const char *type)
 {
 	struct cast_payload *payload;
 	json_object *strobj;
