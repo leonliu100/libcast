@@ -262,58 +262,185 @@ static int create_ctl_socket(const char *hostname)
 	return sock;
 }
 
+struct ctl_command {
+	int request_type;
+	int response_type;
+	int (*handler)(CastdCtlRequest *,
+		       CastdCtlResponse *, struct castd_context *);
+};
+
+static int cmd_status_handler(CastdCtlRequest *req, CastdCtlResponse *resp,
+			       struct castd_context *ctx)
+{
+	(void)req;
+	(void)ctx;
+
+	resp->status = malloc(sizeof(CastdCtlStatusResp));
+	if (!resp->status)
+		return -CASTD_CTL_ERROR_RESP__CODE__ENOMEM;
+
+	castd_ctl_status_resp__init(resp->status);
+	resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__OK;
+
+	return 0;
+}
+
+static struct ctl_command cmd_status = {
+	.request_type = CASTD_CTL_REQUEST__TYPE__STATUS,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__STATUS,
+	.handler = cmd_status_handler,
+};
+
+static struct ctl_command *ctl_cmds[] = {
+	&cmd_status,
+};
+
+static int cmd_list_compar(const void *p1, const void *p2)
+{
+	const struct ctl_command *cmd1 = *(const struct ctl_command **)p1;
+	const struct ctl_command *cmd2 = *(const struct ctl_command **)p2;
+
+	if (cmd1->request_type > cmd2->request_type)
+		return 1;
+	else if (cmd1->request_type < cmd2->request_type)
+		return -1;
+	else
+		return 0;
+}
+
+static struct ctl_command * find_command(int request_type)
+{
+	struct ctl_command key, *keyptr;
+	void *search_res;
+
+	key.request_type = request_type;
+	keyptr = &key;
+	search_res = bsearch(&keyptr, ctl_cmds, CAST_ARRAY_SIZE(ctl_cmds),
+			     sizeof(struct ctl_command *), cmd_list_compar);
+	if (!search_res)
+		return NULL;
+
+	return *(struct ctl_command **)search_res;
+}
+
+static ssize_t ctl_recv_full(int fd, void *buf, size_t bufsize, int flags)
+{
+	int recvd;
+
+	recvd = recv(fd, buf, bufsize, flags);
+	if (recvd < 0) {
+		log_msg(LOG_ERR,
+			"error receiving message: %s", strerror(errno));
+		close(fd);
+		return -1;
+	} else if (recvd == 0) {
+		log_msg(LOG_INFO,
+			"connection closed by client");
+		close(fd);
+		return -1;
+	} else if ((size_t)recvd != bufsize) {
+		log_msg(LOG_WARN,
+			"dropping incomplete client message");
+		close(fd);
+		return -1;
+	}
+
+	return 0;
+}
+
 static void handle_ctl_request(struct castd_context *ctx)
 {
-	CastdCtlRequest *req;
-	CastdCtlResponse resp = CASTD_CTL_RESPONSE__INIT;
-	CastdCtlStatusResp srestp = CASTD_CTL_STATUS_RESP__INIT;
-	ssize_t status;
-	uint32_t len, lenbuf;
-	uint8_t *buf;
-	int sock;
+	struct ctl_command *cmd;
 	struct sockaddr_un addr;
 	socklen_t socklen;
+	int sock, retval;
+	ssize_t status;
+	uint32_t hdr;
+	uint8_t *buf;
+	size_t len;
+
+	CastdCtlRequest *req;
+	CastdCtlResponse resp = CASTD_CTL_RESPONSE__INIT;
+	CastdCtlErrorResp eresp = CASTD_CTL_ERROR_RESP__INIT;
 
 	sock = accept(ctx->ctl_sock, (struct sockaddr *)&addr, &socklen);
-	if (sock < 0)
+	if (sock < 0) {
+		log_msg(LOG_ERR, "error accepting client connection: %s",
+			strerror(errno));
+		return;
+	}
+
+	status = ctl_recv_full(sock, &hdr, sizeof(hdr), 0);
+	if (status < 0)
 		return;
 
-	status = read(sock, &lenbuf, sizeof(lenbuf));
-	if (status != sizeof(lenbuf))
-		return;
-
-	len = ntohl(lenbuf);
+	len = ntohl(hdr);
 	buf = malloc(len);
-	if (!buf)
+	if (!buf) {
+		log_msg(LOG_ERR, "out of memory");
+		close(sock);
 		return;
+	}
 
-	status = read(sock, buf, len);
-	if (status != len)
+	status = ctl_recv_full(sock, buf, len, MSG_DONTWAIT);
+	if (status < 0) {
+		free(buf);
 		return;
+	}
 
 	req = castd_ctl_request__unpack(NULL, len, buf);
-	if (!req)
+	free(buf);
+	if (!req) {
+		log_msg(LOG_ERR, "error unpacking client message");
+		close(sock);
 		return;
+	}
 
-	printf("request: %d\n", req->type);
+	cmd = find_command(req->type);
+	if (!cmd) {
+		eresp.code = CASTD_CTL_ERROR_RESP__CODE__ENOSUPP;
+		resp.type = CASTD_CTL_RESPONSE__TYPE__ERROR;
+		resp.error = &eresp;
+		/* TODO send error */
+	}
 
-	resp.type = CASTD_CTL_RESPONSE__TYPE__STATUS;
-	srestp.status = CASTD_CTL_STATUS_RESP__VALUE__OK;
-	resp.status = &srestp;
+	retval = cmd->handler(req, &resp, ctx);
+	castd_ctl_request__free_unpacked(req, NULL);
+	if (retval != 0) {
+		eresp.code = abs(retval);
+		resp.type = CASTD_CTL_RESPONSE__TYPE__ERROR;
+		resp.error = &eresp;
+		/* TODO send error */
+	}
+
+	resp.type = cmd->response_type;
 
 	len = castd_ctl_response__get_packed_size(&resp);
-	buf = realloc(buf, len);
-	if (!buf)
+	hdr = htonl(len);
+
+	buf = malloc(len + sizeof(hdr));
+	if (!buf) {
+		log_msg(LOG_ERR,
+			"out of memory - cannot send response to client");
+		close(sock);
 		return;
+	}
 
-	castd_ctl_response__pack(&resp, buf);
+	memcpy(buf, &hdr, sizeof(hdr));
+	castd_ctl_response__pack(&resp, buf + sizeof(hdr));
 
-	lenbuf = htonl(len);
-	status = write(sock, &lenbuf, sizeof(lenbuf));
-	if (status != sizeof(lenbuf))
-		return;
+	status = send(sock, buf, len + sizeof(hdr), MSG_DONTWAIT);
+	free(buf);
+	if (status < 0) {
+		log_msg(LOG_ERR,
+			"error sending response: %s", strerror(errno));
+	} else if ((size_t)status != (len + sizeof(hdr))) {
+		log_msg(LOG_WARN, "sending response: incomplete message sent");
+	}
 
-	status = write(sock, buf, len);
+	close(sock);
+
+	return;
 }
 
 enum {
@@ -329,6 +456,9 @@ int main(int argc, char **argv)
 	struct pollfd pfds[NUM_PFDS];
 	char *domain = NULL;
 	char hostname[256];
+
+	qsort(ctl_cmds, CAST_ARRAY_SIZE(ctl_cmds),
+	      sizeof(struct ctl_command *), cmd_list_compar);
 
 	for (;;) {
 		opt_char = getopt_long(argc, argv, optstr, longopts, &opt_ind);
