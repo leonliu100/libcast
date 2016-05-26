@@ -291,8 +291,26 @@ static struct ctl_command cmd_status = {
 	.handler = cmd_status_handler,
 };
 
+static int cmd_quit_handler(CastdCtlRequest *req, CastdCtlResponse *resp,
+			    struct castd_context *ctx)
+{
+	(void)req;
+	(void)resp;
+
+	ctx->run = 0;
+
+	return 0;
+}
+
+static struct ctl_command cmd_quit = {
+	.request_type = CASTD_CTL_REQUEST__TYPE__QUIT,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__QUIT,
+	.handler = cmd_quit_handler,
+};
+
 static struct ctl_command *ctl_cmds[] = {
 	&cmd_status,
+	&cmd_quit,
 };
 
 static int cmd_list_compar(const void *p1, const void *p2)
