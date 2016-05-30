@@ -49,16 +49,27 @@ static const char * level_to_header(int level)
 
 static void emit_msg(int level, const char *fmt, va_list va)
 {
-	int current_level;
+	int current_level, written;
 	char buf[256];
+	char *msg = buf;
+	va_list vacpy;
 
 	current_level = log_level;
 
-	vsnprintf(buf, sizeof(buf), fmt, va);
+	va_copy(vacpy, va);
+	written = vsnprintf(buf, sizeof(buf), fmt, vacpy);
+	va_end(vacpy);
+	if (written > (int)sizeof(buf)) {
+		msg = malloc(written + 1);
+		if (!msg)
+			msg = buf;
+		else
+			vsnprintf(msg, written + 1, fmt, va);
+	}
 
 	if (level <= current_level) {
 		fprintf(stderr, "libcast %-10s%s\n",
-			level_to_header(level), buf);
+			level_to_header(level), msg);
 	}
 
 	/*
@@ -66,7 +77,10 @@ static void emit_msg(int level, const char *fmt, va_list va)
 	 * decide if he wants to suppress certain levels.
 	 */
 	if (log_callback)
-		log_callback(level, buf, log_callback_priv);
+		log_callback(level, msg, log_callback_priv);
+
+	if (msg != buf)
+		free(msg);
 }
 
 void cast_log_level_set(int level)
