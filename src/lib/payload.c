@@ -116,9 +116,9 @@ void cast_payload_free(struct cast_payload *payload)
 
 int cast_payload_type_get(struct cast_payload *payload)
 {
+	json_object *obj, *type_obj;
 	const char *type_str;
 	json_bool status;
-	json_object *obj;
 	int type;
 
 	obj = json_object_new_object();
@@ -126,20 +126,29 @@ int cast_payload_type_get(struct cast_payload *payload)
 		return -CAST_ENOMEM;
 
 	type = json_object_get_type(payload->obj);
-	if (type != json_type_object)
-		return -CAST_EINVAL;
+	if (type != json_type_object) {
+		type = -CAST_EINVAL;
+		goto out;
+	}
 
-	status = json_object_object_get_ex(payload->obj, "type", &obj);
-	if (!status)
-		return -CAST_EINVAL;
+	status = json_object_object_get_ex(payload->obj, "type", &type_obj);
+	if (!status) {
+		type = -CAST_EINVAL;
+		goto out;
+	}
 
-	type = json_object_get_type(obj);
-	if (type != json_type_string)
-		return -CAST_EINVAL;
+	type = json_object_get_type(type_obj);
+	if (type != json_type_string) {
+		type = -CAST_EINVAL;
+		goto out;
+	}
 
-	type_str = json_object_get_string(obj);
+	type_str = json_object_get_string(type_obj);
+	type = payload_type_from_str(type_str);
 
-	return payload_type_from_str(type_str);
+out:
+	json_object_put(obj);
+	return type;
 }
 
 char * cast_payload_to_string(struct cast_payload *payload)
@@ -151,7 +160,7 @@ struct cast_payload * cast_payload_from_string(const char *str)
 {
 	struct cast_payload *payload;
 
-	payload = alloc_payload();
+	payload = malloc(sizeof(*payload));
 	if (!payload)
 		return CAST_ERR_PTR(-CAST_ENOMEM);
 
