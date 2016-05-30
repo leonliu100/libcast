@@ -45,28 +45,21 @@ static const struct msg_data namespaces[] = {
 	}
 };
 
-static const struct msg_data sources[] = {
-	{
-		.val = CAST_MSG_SRC_DEFAULT,
-		.repr = "sender-0",
-	},
-	{
-		.val = CAST_MSG_SRC_TRANSPORT,
-		.repr = "Tr@n$p0rt-0",
-	}
-};
-
-static const struct msg_data destinations[] = {
+static const struct msg_data ids[] = {
 	{
 		.val = CAST_MSG_DST_BROADCAST,
 		.repr = "*",
 	},
 	{
-		.val = CAST_MSG_DST_DEFAULT,
+		.val = CAST_MSG_ID_DEFAULT_SENDER,
+		.repr = "sender-0",
+	},
+	{
+		.val = CAST_MSG_ID_DEFAULT_RECEIVER,
 		.repr = "receiver-0",
 	},
 	{
-		.val = CAST_MSG_DST_TRANSPORT,
+		.val = CAST_MSG_ID_TRANSPORT,
 		.repr = "Tr@n$p0rt-0",
 	}
 };
@@ -115,10 +108,10 @@ struct cast_message * cast_msg_new(int src, int dst, int namespace)
 	cast_message__init(msg->pbmsg);
 	msg->pbmsg->protocol_version = CAST_PROTOCOL_DEFAULT;
 
-	msg->pbmsg->source_id = msg_data_find_repr(src, sources,
-						   CAST_ARRAY_SIZE(sources));
-	msg->pbmsg->destination_id = msg_data_find_repr(dst, destinations,
-						CAST_ARRAY_SIZE(destinations));
+	msg->pbmsg->source_id = msg_data_find_repr(src, ids,
+						   CAST_ARRAY_SIZE(ids));
+	msg->pbmsg->destination_id = msg_data_find_repr(dst, ids,
+						CAST_ARRAY_SIZE(ids));
 	msg->pbmsg->namespace_ = msg_data_find_repr(namespace, namespaces,
 						CAST_ARRAY_SIZE(namespaces));
 
@@ -144,18 +137,17 @@ int cast_msg_namespace_get(struct cast_message *msg)
 int cast_msg_src_get(struct cast_message *msg)
 {
 	int src = msg_data_find_val(msg->pbmsg->source_id,
-				    sources, CAST_ARRAY_SIZE(sources));
+				    ids, CAST_ARRAY_SIZE(ids));
 
-	return src < 0 ? CAST_MSG_SRC_UNKNOWN : src;
+	return src < 0 ? CAST_MSG_ID_UNKNOWN : src;
 }
 
 int cast_msg_dst_get(struct cast_message *msg)
 {
 	int dst = msg_data_find_val(msg->pbmsg->destination_id,
-				    destinations,
-				    CAST_ARRAY_SIZE(destinations));
+				    ids, CAST_ARRAY_SIZE(ids));
 
-	return dst < 0 ? CAST_MSG_DST_UNKNOWN : dst;
+	return dst < 0 ? CAST_MSG_ID_UNKNOWN : dst;
 }
 
 int cast_msg_payload_str_set(struct cast_message *msg, const char *payload)
@@ -292,8 +284,9 @@ static int send_handshake(struct cast_connection *conn)
 	struct cast_message *msg;
 	int status;
 
-	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
-			   CAST_MSG_DST_DEFAULT, CAST_MSG_NS_CONNECTION);
+	msg = cast_msg_new(CAST_MSG_ID_DEFAULT_SENDER,
+			   CAST_MSG_ID_DEFAULT_RECEIVER,
+			   CAST_MSG_NS_CONNECTION);
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
@@ -352,8 +345,8 @@ int cast_msg_ping_send(struct cast_connection *conn)
 	struct cast_message *msg;
 	int status;
 
-	msg = cast_msg_new(CAST_MSG_SRC_DEFAULT,
-			   CAST_MSG_DST_DEFAULT, CAST_MSG_NS_HEARTBEAT);
+	msg = cast_msg_new(CAST_MSG_ID_TRANSPORT,
+			   CAST_MSG_ID_TRANSPORT, CAST_MSG_NS_HEARTBEAT);
 	if (CAST_IS_ERR(msg))
 		return CAST_PTR_ERR(msg);
 
