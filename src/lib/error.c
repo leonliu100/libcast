@@ -22,6 +22,7 @@ static const char *const error_strings[] = {
 	"ssl encryption error",
 	"not enough bytes written",
 	"not enough bytes read",
+	"connection closed by remote peer"
 };
 
 const char * cast_strerror(int errnum)

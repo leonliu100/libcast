@@ -131,7 +131,10 @@ ssize_t cast_ssl_full_read(struct cast_ssl_connection *conn,
 
 	for (;;) {
 		status = BIO_read(conn->bio, buf, expected);
-		if (status != (ssize_t)expected) {
+		if (status == 0) {
+			status = -CAST_ECONNCLOSED;
+			break;
+		} else if (status != (ssize_t)expected) {
 			if (retry-- && BIO_should_retry(conn->bio))
 				continue;
 

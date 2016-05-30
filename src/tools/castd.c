@@ -209,6 +209,11 @@ static void handle_cast_message(struct castd_context *ctx)
 
 	msg = cast_conn_msg_recv(ctx->cast_conn);
 	if (CAST_IS_ERR(msg)) {
+		if (CAST_PTR_ERR(msg) == -CAST_ECONNCLOSED) {
+			log_msg(LOG_ERR, "connection closed by chromecast");
+			ctx->status = CASTD_STATUS_DEFUNCT;
+			return;
+		}
 		log_msg(LOG_ERR, "error receiving message: %s",
 			cast_strerror(CAST_PTR_ERR(msg)));
 		return;
@@ -279,7 +284,10 @@ static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
 		return -CASTD_CTL_ERROR_RESP__CODE__ENOMEM;
 
 	castd_ctl_status_resp__init(resp->status);
-	resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__OK;
+	if (ctx->status == CASTD_STATUS_OK)
+		resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__OK;
+	else
+		resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__DEFUNCT;
 
 	return 0;
 }
@@ -585,7 +593,9 @@ int main(int argc, char **argv)
 		 * own.
 		 */
 		if (ctx.status == CASTD_STATUS_DEFUNCT)
-			numfds--;
+			numfds = 1;
+
+		pfds[CAST_PFD].revents = pfds[CTL_PFD].revents = 0;
 	}
 
 	cast_conn_close(ctx.cast_conn);

@@ -200,6 +200,8 @@ struct cast_message * cast_conn_msg_recv(struct cast_connection *conn)
 	uint8_t *buf;
 
 	recvd = cast_ssl_full_read(conn->ssl_conn, &len, sizeof(uint32_t));
+	if (recvd == -CAST_ECONNCLOSED)
+		return CAST_ERR_PTR(recvd);
 	if (recvd != sizeof(len))
 		return CAST_ERR_PTR(-CAST_ESHORTREAD);
 
