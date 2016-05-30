@@ -58,6 +58,10 @@ static const struct msg_data sources[] = {
 
 static const struct msg_data destinations[] = {
 	{
+		.val = CAST_MSG_DST_BROADCAST,
+		.repr = "*",
+	},
+	{
 		.val = CAST_MSG_DST_DEFAULT,
 		.repr = "receiver-0",
 	},
