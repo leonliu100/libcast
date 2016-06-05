@@ -302,6 +302,26 @@ static int send_handshake(struct cast_connection *conn)
 	return status;
 }
 
+static void send_close(struct cast_connection *conn)
+{
+	struct cast_message *msg;
+
+	msg = cast_msg_new(CAST_MSG_ID_DEFAULT_SENDER,
+			   CAST_MSG_ID_DEFAULT_RECEIVER,
+			   CAST_MSG_NS_CONNECTION);
+	if (CAST_IS_ERR(msg))
+		return;
+
+	msg->payload = cast_payload_close_new();
+	if (CAST_IS_ERR(msg->payload)) {
+		cast_msg_free(msg);
+		return;
+	}
+
+	cast_conn_msg_send(conn, msg);
+	cast_msg_free(msg);
+}
+
 struct cast_connection * cast_conn_connect(const char *hostname)
 {
 	struct cast_ssl_connection *ssl_conn;
@@ -331,6 +351,7 @@ struct cast_connection * cast_conn_connect(const char *hostname)
 
 void cast_conn_close(struct cast_connection *conn)
 {
+	send_close(conn);
 	cast_ssl_close_connection(conn->ssl_conn);
 	free(conn);
 }

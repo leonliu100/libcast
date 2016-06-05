@@ -57,6 +57,7 @@ ssize_t cast_ssl_full_write(struct cast_ssl_connection *conn,
 			    const void *buf, size_t bufsize);
 
 struct cast_payload * cast_payload_connect_new(void);
+struct cast_payload * cast_payload_close_new(void);
 
 char * cast_payload_to_string(struct cast_payload *payload);
 struct cast_payload * cast_payload_from_string(const char *str);
