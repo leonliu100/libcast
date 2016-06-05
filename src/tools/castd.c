@@ -268,6 +268,7 @@ static int create_ctl_socket(const char *hostname)
 }
 
 struct ctl_command {
+	const char *name;
 	int request_type;
 	int response_type;
 	int (*handler)(CastdCtlRequest *,
@@ -300,6 +301,7 @@ static void cmd_status_resp_cleanup(CastdCtlResponse *resp,
 }
 
 static struct ctl_command cmd_status = {
+	.name = "status",
 	.request_type = CASTD_CTL_REQUEST__TYPE__STATUS,
 	.response_type = CASTD_CTL_RESPONSE__TYPE__STATUS,
 	.handler = cmd_status_handler,
@@ -316,6 +318,7 @@ static int cmd_quit_handler(CastdCtlRequest *req CAST_UNUSED,
 }
 
 static struct ctl_command cmd_quit = {
+	.name = "quit",
 	.request_type = CASTD_CTL_REQUEST__TYPE__QUIT,
 	.response_type = CASTD_CTL_RESPONSE__TYPE__QUIT,
 	.handler = cmd_quit_handler,
@@ -434,6 +437,8 @@ static void handle_ctl_request(struct castd_context *ctx)
 		resp.error = &eresp;
 		/* TODO send error */
 	}
+
+	log_msg(LOG_DEBUG, "control request '%s' received", cmd->name);
 
 	retval = cmd->handler(req, &resp, ctx);
 	castd_ctl_request__free_unpacked(req, NULL);
