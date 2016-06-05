@@ -99,8 +99,6 @@ enum {
 	CAST_PAYLOAD_PONG,
 };
 
-CAST_API struct cast_payload * cast_payload_close_new(void);
-
 CAST_API struct cast_payload * cast_payload_ping_new(void);
 
 CAST_API struct cast_payload * cast_payload_pong_new(void);
