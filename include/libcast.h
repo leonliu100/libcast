@@ -113,6 +113,7 @@ enum {
 	CAST_MSG_NS_UNKNOWN = 0,
 	CAST_MSG_NS_CONNECTION,
 	CAST_MSG_NS_HEARTBEAT,
+	CAST_MSG_NS_RECEIVER,
 };
 
 enum {
@@ -156,6 +157,9 @@ CAST_API int cast_msg_ping_send(struct cast_connection *conn);
 
 CAST_API int cast_msg_pong_respond(struct cast_connection *conn,
 				   struct cast_message *ping);
+
+CAST_API int cast_msg_get_status_send(struct cast_connection *conn,
+				      int request_id);
 
 #ifdef __cplusplus
 }

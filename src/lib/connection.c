@@ -42,6 +42,10 @@ static const struct msg_data namespaces[] = {
 	{
 		.val = CAST_MSG_NS_HEARTBEAT,
 		.repr = "urn:x-cast:com.google.cast.tp.heartbeat",
+	},
+	{
+		.val = CAST_MSG_NS_RECEIVER,
+		.repr = "urn:x-cast:com.google.cast.receiver",
 	}
 };
 
@@ -403,6 +407,28 @@ int cast_msg_pong_respond(struct cast_connection *conn,
 		return CAST_PTR_ERR(msg);
 
 	msg->payload = cast_payload_pong_new();
+	if (CAST_IS_ERR(msg->payload)) {
+		cast_msg_free(msg);
+		return CAST_PTR_ERR(msg->payload);
+	}
+
+	status = cast_conn_msg_send(conn, msg);
+	cast_msg_free(msg);
+
+	return status;
+}
+
+int cast_msg_get_status_send(struct cast_connection *conn, int request_id)
+{
+	struct cast_message *msg;
+	int status;
+
+	msg = cast_msg_new(CAST_MSG_ID_DEFAULT_SENDER,
+			   CAST_MSG_ID_DEFAULT_RECEIVER, CAST_MSG_NS_RECEIVER);
+	if (CAST_IS_ERR(msg))
+		return CAST_PTR_ERR(msg);
+
+	msg->payload = cast_payload_get_status_new(request_id);
 	if (CAST_IS_ERR(msg->payload)) {
 		cast_msg_free(msg);
 		return CAST_PTR_ERR(msg->payload);

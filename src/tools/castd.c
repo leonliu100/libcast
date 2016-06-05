@@ -280,6 +280,8 @@ static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
 			      CastdCtlResponse *resp,
 			      struct castd_context *ctx CAST_UNUSED)
 {
+	int status;
+
 	resp->status = malloc(sizeof(CastdCtlStatusResp));
 	if (!resp->status)
 		return -CASTD_CTL_ERROR_RESP__CODE__ENOMEM;
@@ -289,6 +291,12 @@ static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
 		resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__OK;
 	else
 		resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__DEFUNCT;
+
+	status = cast_msg_get_status_send(ctx->cast_conn, 10000);
+	if (status != CAST_OK) {
+		log_msg(LOG_ERR, "error sending GET_STATUS request: %s",
+			cast_strerror(status));
+	}
 
 	return 0;
 }

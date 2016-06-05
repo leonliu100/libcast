@@ -108,6 +108,34 @@ struct cast_payload * cast_payload_pong_new(void)
 	return make_simple_type_payload("PONG");
 }
 
+struct cast_payload * cast_payload_get_status_new(int request_id)
+{
+	struct cast_payload *payload;
+	json_object *field_obj;
+
+	payload = alloc_payload();
+	if (!payload)
+		return CAST_ERR_PTR(-CAST_ENOMEM);
+
+	field_obj = json_object_new_int(request_id);
+	if (!field_obj) {
+		json_object_put(payload->obj);
+		return CAST_ERR_PTR(-CAST_ENOMEM);
+	}
+
+	json_object_object_add(payload->obj, "requestId", field_obj);
+
+	field_obj = json_object_new_string("GET_STATUS");
+	if (!field_obj) {
+		json_object_put(payload->obj);
+		return CAST_ERR_PTR(-CAST_ENOMEM);
+	}
+
+	json_object_object_add(payload->obj, "type", field_obj);
+
+	return payload;
+}
+
 void cast_payload_free(struct cast_payload *payload)
 {
 	json_object_put(payload->obj);
