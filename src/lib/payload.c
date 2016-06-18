@@ -144,14 +144,10 @@ void cast_payload_free(struct cast_payload *payload)
 
 int cast_payload_type_get(struct cast_payload *payload)
 {
-	json_object *obj, *type_obj;
+	json_object *type_obj;
 	const char *type_str;
 	json_bool status;
 	int type;
-
-	obj = json_object_new_object();
-	if (!obj)
-		return -CAST_ENOMEM;
 
 	type = json_object_get_type(payload->obj);
 	if (type != json_type_object) {
@@ -175,7 +171,6 @@ int cast_payload_type_get(struct cast_payload *payload)
 	type = payload_type_from_str(type_str);
 
 out:
-	json_object_put(obj);
 	return type;
 }
 
