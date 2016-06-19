@@ -14,9 +14,10 @@ syntax = "proto2";
 
 message CastdCtlErrorResp {
 	enum Code {
-		ENOSUPP = 0;
-		ENOMEM = 1;
-		EPROTO = 2;
+		ENOERR = 0;
+		ENOSUPP = 1;
+		ENOMEM = 2;
+		EPROTO = 3;
 	}
 	required Code code = 1;
 }
