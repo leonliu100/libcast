@@ -78,6 +78,73 @@ CAST_API void cast_log_level_set(int level);
 
 CAST_API void cast_log_callback_set(cast_log_callback cb, void *priv);
 
+struct cast_list_head {
+	struct cast_list_head *next;
+	struct cast_list_head *prev;
+};
+#define CAST_LIST_HEAD_INITIALIZER(list) { &(list), &(list) }
+
+static inline void cast_list_head_init(struct cast_list_head *list)
+{
+	list->next = list;
+	list->prev = list;
+}
+
+static inline void __cast_list_add(struct cast_list_head *new,
+				   struct cast_list_head *prev,
+				   struct cast_list_head *next)
+{
+	next->prev = new;
+	new->next = next;
+	new->prev = prev;
+	prev->next = new;
+}
+
+static inline void cast_list_add(struct cast_list_head *new,
+				 struct cast_list_head *head)
+{
+	__cast_list_add(new, head, head->next);
+}
+
+static inline void cast_list_add_tail(struct cast_list_head *new,
+				      struct cast_list_head *head)
+{
+	__cast_list_add(new, head->prev, head);
+}
+
+static inline void __cast_list_del(struct cast_list_head * prev,
+				   struct cast_list_head * next)
+{
+	next->prev = prev;
+	prev->next = next;
+}
+
+static inline void cast_list_del(struct cast_list_head *entry)
+{
+	__cast_list_del(entry->prev, entry->next);
+	entry->next = NULL;
+	entry->prev = NULL;
+}
+
+static inline int cast_list_empty(const struct cast_list_head *head)
+{
+	return head == head->next;
+}
+
+#define cast_list_entry(ptr, type, member) \
+	((void*)(((uint8_t*)(ptr)) - offsetof(type, member)))
+
+#define cast_list_foreach(head, iter) \
+	for ((iter) = (head)->next; (iter) != (head); (iter) = (iter)->next)
+
+#define cast_list_foreach_rev(head, iter) \
+	for ((iter) = (head)->prev; (iter) != (head); (iter) = (iter)->prev)
+
+#define cast_list_foreach_safe(head, iter, tmp)				\
+	for ((iter) = (head)->next, (tmp) = (iter)->next;		\
+	    (iter) != (head); (iter) = (tmp), (tmp) = (iter)->next)
+
+
 enum {
 	CAST_DISCOVER_CONTINUE = 0,
 	CAST_DISCOVER_STOP,
