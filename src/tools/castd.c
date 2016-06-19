@@ -443,7 +443,7 @@ static void handle_ctl_request(struct castd_context *ctx)
 		eresp.code = CASTD_CTL_ERROR_RESP__CODE__ENOSUPP;
 		resp.type = CASTD_CTL_RESPONSE__TYPE__ERROR;
 		resp.error = &eresp;
-		/* TODO send error */
+		goto send_resp;
 	}
 
 	log_msg(LOG_DEBUG, "control request '%s' received", cmd->name);
@@ -459,6 +459,7 @@ static void handle_ctl_request(struct castd_context *ctx)
 
 	resp.type = cmd->response_type;
 
+send_resp:
 	len = castd_ctl_response__get_packed_size(&resp);
 	hdr = htonl(len);
 
@@ -466,7 +467,7 @@ static void handle_ctl_request(struct castd_context *ctx)
 	if (!buf) {
 		log_msg(LOG_ERR,
 			"out of memory - cannot send response to client");
-		if (cmd->resp_cleanup)
+		if (cmd && cmd->resp_cleanup)
 			cmd->resp_cleanup(&resp, ctx);
 		close(sock);
 		return;
@@ -484,7 +485,7 @@ static void handle_ctl_request(struct castd_context *ctx)
 		log_msg(LOG_WARN, "sending response: incomplete message sent");
 	}
 
-	if (cmd->resp_cleanup)
+	if (cmd && cmd->resp_cleanup)
 		cmd->resp_cleanup(&resp, ctx);
 	close(sock);
 
