@@ -300,6 +300,10 @@ static void handle_error_response(const char *cmd, CastdCtlResponse *resp)
 	switch (resp->error->code) {
 	case CASTD_CTL_ERROR_RESP__CODE__ENOSUPP:
 		err_msg_and_die("%s: command unsupported by castd\n", cmd);
+	case CASTD_CTL_ERROR_RESP__CODE__ENOMEM:
+		err_msg_and_die("castd ran out of memory\n");
+	case CASTD_CTL_ERROR_RESP__CODE__EPROTO:
+		err_msg_and_die("%s: chromecast protocol error\n", cmd);
 	default:
 		err_msg_and_die("unknown error returned by castd\n");
 	}
