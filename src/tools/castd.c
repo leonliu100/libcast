@@ -116,8 +116,16 @@ struct castd_context {
 	int ctl_sock;
 	int run;
 	int status;
+	int last_reqid;
+	struct cast_list_head deferred_requests;
 };
-#define CASTD_CTX_INITIALIZER	{ NULL, 0, 1, CASTD_STATUS_OK }
+#define CASTD_CTX_INITIALIZER \
+	{ NULL, 0, 1, CASTD_STATUS_OK, 1, { NULL, NULL } }
+
+struct deferred_request {
+	struct cast_list_head link;
+	int reqid;
+};
 
 static int log_level = LOG_WARN;
 
@@ -173,6 +181,14 @@ CAST_NORETURN static void err_msg_and_die(const char *progname,
 	va_end(va);
 
 	exit(EXIT_FAILURE);
+}
+
+static int ctx_get_new_reqid(struct castd_context *ctx)
+{
+	if (ctx->last_reqid == INT_MAX)
+		ctx->last_reqid = 1;
+
+	return ctx->last_reqid++;
 }
 
 static void handle_heartbeat_msg(struct castd_context *ctx, cast_message *msg)
@@ -276,12 +292,13 @@ struct ctl_command {
 	void (*resp_cleanup)(CastdCtlResponse *, struct castd_context *);
 };
 
+#define CTL_CMD_OK		0
+#define CTL_CMD_DEFERRED	1
+
 static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
 			      CastdCtlResponse *resp,
 			      struct castd_context *ctx CAST_UNUSED)
 {
-	int status;
-
 	resp->status = malloc(sizeof(CastdCtlStatusResp));
 	if (!resp->status)
 		return -CASTD_CTL_ERROR_RESP__CODE__ENOMEM;
@@ -292,13 +309,7 @@ static int cmd_status_handler(CastdCtlRequest *req CAST_UNUSED,
 	else
 		resp->status->status = CASTD_CTL_STATUS_RESP__VALUE__DEFUNCT;
 
-	status = cast_msg_get_status_send(ctx->cast_conn, 10000);
-	if (status != CAST_OK) {
-		log_msg(LOG_ERR, "error sending GET_STATUS request: %s",
-			cast_strerror(status));
-	}
-
-	return 0;
+	return CTL_CMD_OK;
 }
 
 static void cmd_status_resp_cleanup(CastdCtlResponse *resp,
@@ -322,7 +333,7 @@ static int cmd_quit_handler(CastdCtlRequest *req CAST_UNUSED,
 {
 	ctx->run = 0;
 
-	return 0;
+	return CTL_CMD_OK;
 }
 
 static struct ctl_command cmd_quit = {
@@ -332,9 +343,35 @@ static struct ctl_command cmd_quit = {
 	.handler = cmd_quit_handler,
 };
 
+static int cmd_app_handler(CastdCtlRequest *req CAST_UNUSED,
+			   CastdCtlResponse *resp CAST_UNUSED,
+			   struct castd_context *ctx)
+{
+	int status, reqid;
+
+	reqid = ctx_get_new_reqid(ctx);
+
+	status = cast_msg_get_status_send(ctx->cast_conn, reqid);
+	if (status != CAST_OK) {
+		log_msg(LOG_ERR, "error sending GET_STATUS request: %s",
+			cast_strerror(status));
+		return -CASTD_CTL_ERROR_RESP__CODE__EPROTO;
+	}
+
+	return CTL_CMD_OK;
+}
+
+static struct ctl_command cmd_app = {
+	.name = "app",
+	.request_type = CASTD_CTL_REQUEST__TYPE__APP,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__APP,
+	.handler = cmd_app_handler,
+};
+
 static struct ctl_command *ctl_cmds[] = {
 	&cmd_status,
 	&cmd_quit,
+	&cmd_app,
 };
 
 static int cmd_list_compar(const void *p1, const void *p2)
@@ -450,11 +487,11 @@ static void handle_ctl_request(struct castd_context *ctx)
 
 	retval = cmd->handler(req, &resp, ctx);
 	castd_ctl_request__free_unpacked(req, NULL);
-	if (retval != 0) {
+	if (retval != CTL_CMD_OK) {
 		eresp.code = abs(retval);
 		resp.type = CASTD_CTL_RESPONSE__TYPE__ERROR;
 		resp.error = &eresp;
-		/* TODO send error */
+		goto send_resp;
 	}
 
 	resp.type = cmd->response_type;
@@ -541,6 +578,7 @@ int main(int argc, char **argv)
 	}
 
 	cast_log_callback_set(lib_log_callback, &ctx);
+	cast_list_head_init(&ctx.deferred_requests);
 
 	if (optind != (argc-1))
 		err_msg_and_die(argv[0], "friendly name must be specified\n");
