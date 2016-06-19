@@ -279,11 +279,11 @@ static struct ctl_command * find_command(const char *name)
 	return *(struct ctl_command **)search_res;
 }
 
-static void handle_error_response(CastdCtlResponse *resp)
+static void handle_error_response(const char *cmd, CastdCtlResponse *resp)
 {
 	switch (resp->error->code) {
 	case CASTD_CTL_ERROR_RESP__CODE__ENOSUPP:
-		err_msg_and_die("command unsupported by castd\n");
+		err_msg_and_die("%s: command unsupported by castd\n", cmd);
 	default:
 		err_msg_and_die("unknown error returned by castd\n");
 	}
@@ -402,7 +402,7 @@ int main(int argc, char **argv)
 		err_msg_and_die("out of memory\n");
 
 	if (response->type == CASTD_CTL_RESPONSE__TYPE__ERROR)
-		handle_error_response(response);
+		handle_error_response(cmd->name, response);
 	else if (response->type != cmd->response_type)
 		err_msg_and_die("received message of invalid type\n");
 
