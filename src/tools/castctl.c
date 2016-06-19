@@ -103,6 +103,9 @@ static int cmd_status_handle_resp(CastdCtlResponse *resp)
 {
 	char *status;
 
+	if (!resp->status)
+		err_msg_and_die("castd didn't return correct status\n");
+
 	switch (resp->status->status) {
 	case CASTD_CTL_STATUS_RESP__VALUE__OK:
 		status = "OK";
@@ -136,7 +139,14 @@ static struct ctl_command cmd_quit = {
 
 static int cmd_app_handle_resp(CastdCtlResponse *resp)
 {
-	printf("current chromecast app: %s\n", resp->app->name);
+	char *app;
+
+	if (resp->app && resp->app)
+		app = resp->app->name;
+	else
+		err_msg_and_die("castd didn't return the app name\n");
+
+	printf("current chromecast app: %s\n", app);
 
 	return 0;
 }
