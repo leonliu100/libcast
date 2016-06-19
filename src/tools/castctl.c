@@ -134,9 +134,25 @@ static struct ctl_command cmd_quit = {
 	.help = "request the cast daemon to quit",
 };
 
+static int cmd_app_handle_resp(CastdCtlResponse *resp)
+{
+	printf("current chromecast app: %s\n", resp->app->name);
+
+	return 0;
+}
+
+static struct ctl_command cmd_app = {
+	.name = "app",
+	.request_type = CASTD_CTL_REQUEST__TYPE__APP,
+	.response_type = CASTD_CTL_RESPONSE__TYPE__APP,
+	.handle_response = cmd_app_handle_resp,
+	.help = "get the name of currently running app",
+};
+
 static struct ctl_command *cmd_list[] = {
 	&cmd_status,
 	&cmd_quit,
+	&cmd_app,
 };
 
 static int cmd_list_compar(const void *p1, const void *p2)

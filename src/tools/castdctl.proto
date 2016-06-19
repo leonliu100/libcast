@@ -28,10 +28,15 @@ message CastdCtlStatusResp {
 	required Value status = 1;
 }
 
+message CastdCtlAppResp {
+	required string name = 1;
+}
+
 message CastdCtlRequest {
 	enum Type {
 		STATUS = 0;
 		QUIT = 1;
+		APP = 2;
 	}
 	required Type type = 1;
 }
@@ -41,11 +46,13 @@ message CastdCtlResponse {
 		ERROR = -1;
 		STATUS = 0;
 		QUIT = 1;
+		APP = 2;
 	}
 	required Type type = 1;
 
 	oneof data {
 		CastdCtlErrorResp error = 2;
 		CastdCtlStatusResp status = 3;
+		CastdCtlAppResp app = 4;
 	}
 }
