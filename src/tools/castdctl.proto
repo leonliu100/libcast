@@ -16,6 +16,7 @@ message CastdCtlErrorResp {
 	enum Code {
 		ENOSUPP = 0;
 		ENOMEM = 1;
+		EPROTO = 2;
 	}
 	required Code code = 1;
 }
